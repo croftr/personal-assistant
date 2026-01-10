@@ -1,40 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import fs from "fs/promises";
+import path from "path";
 
-export async function POST(req: NextRequest) {
-    try {
+// --- Types & Helpers ---
 
+type FileData = {
+    name: string;
+    buffer: Buffer;
+    mimeType: string;
+};
 
-        const formData = await req.formData();
-        const files = formData.getAll("files") as File[];
+type ProcessedExpense = {
+    fileName: string;
+    description: string;
+    date: string;
+    amount: number;
+};
 
-        if (!files || files.length === 0) {
-            return NextResponse.json({ error: "No files provided" }, { status: 400 });
-        }
+const isReceiptFile = (filename: string) => {
+    const ext = path.extname(filename).toLowerCase();
+    return [".jpg", ".jpeg", ".png", ".webp", ".pdf"].includes(ext);
+};
 
-        console.log("Number of files to process ", files.length);
+const getMimeType = (filename: string) => {
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === ".pdf") return "application/pdf";
+    if (ext === ".png") return "image/png";
+    if (ext === ".webp") return "image/webp";
+    return "image/jpeg";
+};
 
-        const apiKey = process.env.GOOGLE_GENAI_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json({ error: "API key not configured" }, { status: 500 });
-        }
+// Core processing logic refactored for reuse
+async function processReceipts(files: FileData[]): Promise<ProcessedExpense[]> {
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+    if (!apiKey) throw new Error("API key not configured");
 
-        console.log("key prefix is ", apiKey.slice(0, 5));
+    const client = new GoogleGenAI({ apiKey });
+    const results: ProcessedExpense[] = [];
 
-        const client = new GoogleGenAI({ apiKey });
+    for (const file of files) {
+        try {
+            const base64Data = file.buffer.toString("base64");
 
-        const results = [];
-
-        for (const file of files) {
-            console.log("lets loop");
-
-            const bytes = await file.arrayBuffer();
-            const base64Data = Buffer.from(bytes).toString("base64");
-
-            console.log("file is ", file.name);
-
-
-            const prompt = "Extract the following information from this receipt: 1) A brief description of what was bought or the vendor name, 2) The date of the transaction (in YYYY-MM-DD format if possible), 3) The total amount. Return the data in JSON format: { \"description\": \"...\", \"date\": \"...\", \"amount\": 0.00 }";
+            const prompt = `
+        Extract the following from this receipt:
+        1) Description (vendor/item)
+        2) Date (YYYY-MM-DD or N/A)
+        3) Total Amount (Number only. Assume GBP £. Do not include currency symbol in the output number)
+        
+        Return ONLY raw JSON: { "description": "...", "date": "...", "amount": 0.00 }
+      `;
 
             const response = await client.models.generateContent({
                 model: "gemini-2.0-flash-exp",
@@ -46,7 +62,7 @@ export async function POST(req: NextRequest) {
                             {
                                 inlineData: {
                                     data: base64Data,
-                                    mimeType: file.type,
+                                    mimeType: file.mimeType,
                                 },
                             },
                         ],
@@ -54,58 +70,158 @@ export async function POST(req: NextRequest) {
                 ],
             });
 
-            // Based on @google/genai response structure (it's usually response.text() or similar)
-            // Actually in the new SDK it might be response.candidates[0].content.parts[0].text
-            // But they usually provide helper methods.
-
             let text = response.text || "";
-
-            // Basic JSON cleaning if Gemini adds markdown blocks
             text = text.replace(/```json|```/g, "").trim();
 
             try {
                 const data = JSON.parse(text);
+                // Clean amount
+                let amount = 0;
+                if (typeof data.amount === "string") {
+                    amount = parseFloat(data.amount.replace(/[^0-9.-]+/g, "")) || 0;
+                } else {
+                    amount = data.amount || 0;
+                }
+
                 results.push({
-                    fileName: file.name,
-                    description: data.description || file.name,
+                    fileName: path.basename(file.name),
+                    description: data.description || path.basename(file.name),
                     date: data.date || "N/A",
-                    amount: parseFloat(data.amount) || 0,
+                    amount: amount,
                 });
             } catch (e) {
-                console.error("Failed to parse Gemini response:", text);
-                results.push({
-                    fileName: file.name,
-                    description: file.name,
-                    date: "Error",
-                    amount: 0,
-                });
+                console.error(`Failed to parse JSON for ${file.name}:`, text);
+                results.push({ fileName: path.basename(file.name), description: path.basename(file.name), date: "Error", amount: 0 });
             }
+        } catch (err) {
+            console.error(`Error processing file ${file.name}:`, err);
+            results.push({ fileName: path.basename(file.name), description: `Error reading ${path.basename(file.name)}`, date: "Error", amount: 0 });
+        }
+    }
+    return results;
+}
+
+// CSV Generation Helper
+function generateCsv(data: ProcessedExpense[]): string {
+    const today = new Date().toLocaleDateString("en-GB").split("/").join("-");
+    let csvContent = `Expenses Report - Generated on ${today}\n\n`;
+    csvContent += "Receipt Name,Description,Date,Amount (GBP)\n";
+
+    let total = 0;
+    data.forEach((res) => {
+        const cleanName = (res.fileName || "").replace(/"/g, '""');
+        const cleanDesc = (res.description || "").replace(/"/g, '""');
+        const row = `"${cleanName}","${cleanDesc}","${res.date}",${res.amount.toFixed(2)}\n`;
+        csvContent += row;
+        total += res.amount;
+    });
+
+    csvContent += `\nTOTAL,,,${total.toFixed(2)}\n`;
+    return csvContent;
+}
+
+
+// --- Main Handler ---
+
+export async function POST(req: NextRequest) {
+    try {
+        const contentType = req.headers.get("content-type") || "";
+
+        // ---------------------------------------------------------
+        // MODE 1: FILE UPLOAD (Browser Picker)
+        // ---------------------------------------------------------
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            const rawFiles = formData.getAll("files") as File[];
+
+            if (!rawFiles || rawFiles.length === 0) {
+                return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
+            }
+
+            // Convert standard Files to our FileData type
+            const fileBufferPromises = rawFiles.map(async (f) => ({
+                name: f.name,
+                mimeType: f.type,
+                buffer: Buffer.from(await f.arrayBuffer()),
+            }));
+
+            const filesToProcess = await Promise.all(fileBufferPromises);
+            const results = await processReceipts(filesToProcess);
+            const csvContent = generateCsv(results);
+
+            return NextResponse.json({ success: true, csvContent, count: results.length });
         }
 
-        // Generate CSV
-        const today = new Date().toLocaleDateString("en-GB").split("/").join("-");
-        let csvContent = `Expenses Report - Generated on ${today}\n\n`;
-        csvContent += "Description,Date,Amount\n";
+        // ---------------------------------------------------------
+        // MODE 2: SERVER PATH (Local Filesystem)
+        // ---------------------------------------------------------
+        if (contentType.includes("application/json")) {
+            const body = await req.json();
+            const { path: dirPath, action } = body;
 
-        let total = 0;
-        results.forEach((res) => {
-            // Clean description for CSV (remove quotes/commas)
-            const cleanDesc = res.description.replace(/"/g, '""');
-            const row = `"${cleanDesc}","${res.date}",${res.amount.toFixed(2)}\n`;
-            csvContent += row;
-            total += res.amount;
-        });
+            if (!dirPath) {
+                return NextResponse.json({ error: "Directory path is required" }, { status: 400 });
+            }
 
-        csvContent += `\nTOTAL,,${total.toFixed(2)}\n`;
+            // Validate Directory
+            try {
+                const stats = await fs.stat(dirPath);
+                if (!stats.isDirectory()) {
+                    return NextResponse.json({ error: "Path is not a directory" }, { status: 400 });
+                }
+            } catch (e) {
+                return NextResponse.json({ error: "Directory not found" }, { status: 404 });
+            }
 
-        return new NextResponse(csvContent, {
-            headers: {
-                "Content-Type": "text/csv; charset=utf-8",
-                "Content-Disposition": `attachment; filename="expenses_${today}.csv"`,
-            },
-        });
-    } catch (error) {
-        console.error("Error processing expenses:", error);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+            // Read Directory
+            const allFiles = await fs.readdir(dirPath);
+            const visibleFiles = allFiles.filter(item => !item.startsWith("."));
+            const receiptFiles = visibleFiles.filter(item => isReceiptFile(item));
+
+            // Action: SCAN
+            if (action === "scan") {
+                return NextResponse.json({
+                    count: receiptFiles.length,
+                    files: receiptFiles
+                });
+            }
+
+            // Action: PROCESS
+            if (action === "process") {
+                // Read files from disk
+                const fileReadPromises = receiptFiles.map(async (fileName) => {
+                    const fullPath = path.join(dirPath, fileName);
+                    const buffer = await fs.readFile(fullPath);
+                    return {
+                        name: fileName,
+                        mimeType: getMimeType(fileName),
+                        buffer: buffer
+                    };
+                });
+
+                const filesToProcess = await Promise.all(fileReadPromises);
+                const results = await processReceipts(filesToProcess);
+                const csvContent = generateCsv(results);
+
+                // Write to disk
+                const today = new Date().toLocaleDateString("en-GB").split("/").join("-");
+                const outputPath = path.join(dirPath, `expenses_${today}.csv`);
+                await fs.writeFile(outputPath, csvContent, "utf-8");
+
+                return NextResponse.json({
+                    success: true,
+                    csvPath: outputPath,
+                    csvContent: csvContent
+                });
+            }
+
+            return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+        }
+
+        return NextResponse.json({ error: "Unsupported Content-Type" }, { status: 415 });
+
+    } catch (error: any) {
+        console.error("Processing Error:", error);
+        return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
     }
 }
