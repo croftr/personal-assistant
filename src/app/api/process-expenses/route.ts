@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
         if (contentType.includes("multipart/form-data")) {
             const formData = await req.formData();
             const rawFiles = formData.getAll("files") as File[];
+            const outputMode = formData.get("outputMode") as string || "save";
 
             if (!rawFiles || rawFiles.length === 0) {
                 return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
             const results = await processReceipts(filesToProcess);
             const csvContent = generateCsv(results);
 
-            return NextResponse.json({ success: true, csvContent, count: results.length });
+            return NextResponse.json({ success: true, csvContent, count: results.length, outputMode });
         }
 
         // ---------------------------------------------------------
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
         // ---------------------------------------------------------
         if (contentType.includes("application/json")) {
             const body = await req.json();
-            const { path: dirPath, action } = body;
+            const { path: dirPath, action, outputMode } = body;
 
             if (!dirPath) {
                 return NextResponse.json({ error: "Directory path is required" }, { status: 400 });
@@ -203,15 +204,20 @@ export async function POST(req: NextRequest) {
                 const results = await processReceipts(filesToProcess);
                 const csvContent = generateCsv(results);
 
-                // Write to disk
-                const today = new Date().toLocaleDateString("en-GB").split("/").join("-");
-                const outputPath = path.join(dirPath, `expenses_${today}.csv`);
-                await fs.writeFile(outputPath, csvContent, "utf-8");
+                // Only write to disk if outputMode is "save" (default behavior for backwards compatibility)
+                let csvPath = null;
+                if (outputMode !== "download") {
+                    const today = new Date().toLocaleDateString("en-GB").split("/").join("-");
+                    const outputPath = path.join(dirPath, `expenses_${today}.csv`);
+                    await fs.writeFile(outputPath, csvContent, "utf-8");
+                    csvPath = outputPath;
+                }
 
                 return NextResponse.json({
                     success: true,
-                    csvPath: outputPath,
-                    csvContent: csvContent
+                    csvPath,
+                    csvContent: csvContent,
+                    outputMode: outputMode || "save"
                 });
             }
 

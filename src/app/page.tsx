@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, FolderOpen, Play, FileText, CheckCircle2, AlertCircle, Search, Save } from "lucide-react";
+import { Loader2, FolderOpen, Play, FileText, CheckCircle2, AlertCircle, Search, Save, FolderArchive, Mail, ChevronRight } from "lucide-react";
 
 // --- File System Access API Types (Polyfill for TS) ---
 interface FileSystemHandle {
@@ -54,6 +54,22 @@ export default function Home() {
   // Data State
   const [csvData, setCsvData] = useState<ExpenseRow[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
+  const [csvContent, setCsvContent] = useState<string>("");
+
+  // Output Mode
+  const [outputMode, setOutputMode] = useState<"save" | "download">("save");
+
+  // Workflow State
+  const [workflowStep, setWorkflowStep] = useState<"idle" | "zip" | "email" | "complete">("idle");
+  const [zipData, setZipData] = useState<string>("");
+  const [zipFileName, setZipFileName] = useState<string>("");
+  const [emailRecipient, setEmailRecipient] = useState<string>("");
+  const [emailSubject, setEmailSubject] = useState<string>("");
+  const [emailMessage, setEmailMessage] = useState<string>("");
+
+  // Standalone workflow inputs
+  const [standaloneZipPath, setStandaloneZipPath] = useState<string>("");
+  const [uploadedZipFile, setUploadedZipFile] = useState<File | null>(null);
 
   // Derived Mode
   const isPickerMode = directoryHandle !== null;
@@ -80,6 +96,19 @@ export default function Home() {
 
     setCsvData(rows);
     setTotalAmount(currentTotal);
+  };
+
+  const downloadCsvFile = (csvContent: string) => {
+    const today = new Date().toISOString().split("T")[0];
+    const fileName = `expenses_${today}.csv`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
   };
 
   // --- Handlers ---
@@ -200,18 +229,15 @@ export default function Home() {
 
     try {
       // -------------------------------------------------------------------------
-      // STEP 1: PRE-AUTHORIZE WRITE (Must be done immediately during user click)
+      // STEP 1: PRE-AUTHORIZE WRITE (Only if save mode and picker mode)
       // -------------------------------------------------------------------------
-      if (isPickerMode && directoryHandle) {
+      if (outputMode === "save" && isPickerMode && directoryHandle) {
         try {
           const today = new Date().toISOString().split("T")[0];
           const fileName = `expenses_${today}.csv`;
           const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
-          // This triggers the browser permission prompt if needed. 
-          // Must happen before the async fetch awaits.
           writable = await fileHandle.createWritable();
         } catch (err: any) {
-          // If they deny permission or it fails, stop here.
           throw new Error(`Permission denied for saving file: ${err.message}`);
         }
       }
@@ -225,6 +251,7 @@ export default function Home() {
         // --- PICKER MODE ---
         const formData = new FormData();
         selectedFiles.forEach(f => formData.append("files", f));
+        formData.append("outputMode", outputMode);
 
         if (formData.getAll("files").length === 0) throw new Error("No valid files.");
 
@@ -242,7 +269,7 @@ export default function Home() {
         const response = await fetch("/api/process-expenses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: folderPath, action: "process" }),
+          body: JSON.stringify({ path: folderPath, action: "process", outputMode }),
         });
 
         if (!response.ok) throw new Error((await response.json()).error);
@@ -251,18 +278,23 @@ export default function Home() {
       }
 
       // -------------------------------------------------------------------------
-      // STEP 3: WRITE TO DISK (Using the pre-opened stream)
+      // STEP 3: HANDLE OUTPUT (Save or Download)
       // -------------------------------------------------------------------------
-      if (writable) {
+      if (outputMode === "download") {
+        setMessage("Downloading report...");
+        downloadCsvFile(csvContent);
+      } else if (writable) {
         setMessage("Saving report...");
         await writable.write(csvContent);
         await writable.close();
-        writable = null; // Mark closed
+        writable = null;
       }
 
       parseCsvToRows(csvContent);
+      setCsvContent(csvContent); // Store for workflow
       setStatus("success");
-      setMessage("Success! Report saved to folder.");
+      setMessage(outputMode === "download" ? "Success! Report downloaded." : "Success! Report saved to folder.");
+      setWorkflowStep("idle"); // Reset workflow
 
     } catch (err: any) {
       console.error(err);
@@ -274,6 +306,128 @@ export default function Home() {
         try { await writable.close(); } catch (e) { }
       }
 
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCreateZip = async (useStandalonePath: boolean = false) => {
+    setIsProcessing(true);
+    setWorkflowStep("zip");
+    setMessage("Creating ZIP file...");
+
+    try {
+      let response;
+      const pathToUse = useStandalonePath ? standaloneZipPath : folderPath;
+
+      if (isPickerMode && !useStandalonePath) {
+        // Browser mode: send files from picker
+        const formData = new FormData();
+        selectedFiles.forEach(f => formData.append("receipts", f));
+
+        // Create CSV file from content if available
+        if (csvContent) {
+          const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+          const today = new Date().toISOString().split("T")[0];
+          const csvFile = new File([csvBlob], `expenses_${today}.csv`, { type: 'text/csv' });
+          formData.append("csv", csvFile);
+        }
+
+        response = await fetch("/api/create-zip", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        // Path mode: server reads files
+        if (!pathToUse) {
+          throw new Error("Please enter a folder path");
+        }
+
+        response = await fetch("/api/create-zip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folderPath: pathToUse,
+            csvContent: csvContent || undefined
+          }),
+        });
+      }
+
+      if (!response.ok) throw new Error((await response.json()).error);
+
+      const data = await response.json();
+      setZipData(data.zipData);
+      setZipFileName(data.fileName);
+      setMessage("ZIP file created successfully!");
+
+      // Auto-download the zip
+      const zipBlob = new Blob([Buffer.from(data.zipData, 'base64')], { type: 'application/zip' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = data.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+    } catch (err: any) {
+      console.error(err);
+      setStatus("error");
+      setMessage(err.message || "Failed to create ZIP");
+      setWorkflowStep("idle");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailRecipient) {
+      setMessage("Please enter recipient email");
+      return;
+    }
+
+    setIsProcessing(true);
+    setWorkflowStep("email");
+    setMessage("Sending email...");
+
+    try {
+      let zipDataToSend = zipData;
+      let fileNameToSend = zipFileName;
+
+      // If user uploaded a ZIP file, convert it to base64
+      if (uploadedZipFile) {
+        const arrayBuffer = await uploadedZipFile.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        zipDataToSend = buffer.toString('base64');
+        fileNameToSend = uploadedZipFile.name;
+      }
+
+      if (!zipDataToSend) {
+        setMessage("No ZIP file available. Please create or upload a ZIP file first.");
+        setIsProcessing(false);
+        return;
+      }
+
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: emailRecipient,
+          subject: emailSubject || `Expense Report - ${new Date().toLocaleDateString("en-GB")}`,
+          message: emailMessage || "Please find attached the expense report with receipts.",
+          zipData: zipDataToSend,
+          fileName: fileNameToSend,
+        }),
+      });
+
+      if (!response.ok) throw new Error((await response.json()).error);
+
+      setMessage("Email sent successfully!");
+      setWorkflowStep("complete");
+    } catch (err: any) {
+      console.error(err);
+      setStatus("error");
+      setMessage(err.message || "Failed to send email");
     } finally {
       setIsProcessing(false);
     }
@@ -333,6 +487,40 @@ export default function Home() {
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-300 ml-1">Output Method</label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOutputMode("save")}
+                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
+                  outputMode === "save"
+                    ? "bg-blue-600 text-white border-2 border-blue-500"
+                    : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
+                }`}
+              >
+                <Save className="w-4 h-4" />
+                Save to Folder
+              </button>
+              <button
+                onClick={() => setOutputMode("download")}
+                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
+                  outputMode === "download"
+                    ? "bg-blue-600 text-white border-2 border-blue-500"
+                    : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                Download via Browser
+              </button>
+            </div>
+            {outputMode === "download" && (
+              <p className="text-xs text-gray-400 ml-1">CSV will be downloaded to your browser's default download folder</p>
+            )}
+            {outputMode === "save" && !isPickerMode && (
+              <p className="text-xs text-gray-400 ml-1">CSV will be saved to the receipt folder</p>
+            )}
           </div>
 
           {(fileList.length > 0 || status !== 'idle') && (
@@ -417,6 +605,165 @@ export default function Home() {
                   <p className="text-sm">Enter a path or click the folder icon to start.</p>
                 </div>
               )
+            )}
+          </div>
+        </div>
+
+        {/* Workflow Section - Always Visible */}
+        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-6">
+          <h3 className="font-semibold text-gray-300 flex items-center gap-2">
+            <ChevronRight className="w-4 h-4" />
+            Additional Actions (Optional)
+          </h3>
+
+          {/* Step 1: Create ZIP */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete"
+                    ? "bg-green-600"
+                    : "bg-white/10"
+                }`}>
+                  {workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete" ? (
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  ) : (
+                    <span className="text-sm text-gray-400">1</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-200">Create ZIP Archive</p>
+                  <p className="text-xs text-gray-400">Bundle receipts and CSV into a single file</p>
+                </div>
+              </div>
+            </div>
+
+            {workflowStep !== "zip" && workflowStep !== "email" && workflowStep !== "complete" && (
+              <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
+                {!csvContent && (
+                  <>
+                    <label className="text-xs text-gray-400">Folder path containing receipts:</label>
+                    <input
+                      type="text"
+                      placeholder="C:\path\to\receipts"
+                      value={standaloneZipPath}
+                      onChange={(e) => setStandaloneZipPath(e.target.value)}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm font-mono"
+                    />
+                  </>
+                )}
+                <button
+                  onClick={() => handleCreateZip(!csvContent)}
+                  disabled={isProcessing || (!csvContent && !standaloneZipPath)}
+                  className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
+                >
+                  <FolderArchive className="w-4 h-4" />
+                  {isProcessing ? "Creating..." : "Create ZIP"}
+                </button>
+              </div>
+            )}
+
+            {(workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete") && (
+              <div className="ml-11">
+                <span className="text-sm text-green-400">✓ Created: {zipFileName}</span>
+                <button
+                  onClick={() => setWorkflowStep("idle")}
+                  className="ml-4 text-xs text-gray-400 hover:text-white"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Send Email */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  workflowStep === "complete"
+                    ? "bg-green-600"
+                    : "bg-white/10"
+                }`}>
+                  {workflowStep === "complete" ? (
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  ) : (
+                    <span className="text-sm text-gray-400">2</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-200">Send Email</p>
+                  <p className="text-xs text-gray-400">Email a ZIP file to recipient</p>
+                </div>
+              </div>
+            </div>
+
+            {workflowStep !== "complete" && (
+              <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
+                {!zipData && !uploadedZipFile && (
+                  <>
+                    <label className="text-xs text-gray-400">Upload ZIP file (if not created above):</label>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      onChange={(e) => setUploadedZipFile(e.target.files?.[0] || null)}
+                      className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500"
+                    />
+                  </>
+                )}
+                {(zipData || uploadedZipFile) && (
+                  <p className="text-xs text-green-400">
+                    ✓ ZIP file ready: {uploadedZipFile?.name || zipFileName}
+                  </p>
+                )}
+                <input
+                  type="email"
+                  placeholder="Recipient email *"
+                  value={emailRecipient}
+                  onChange={(e) => setEmailRecipient(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
+                />
+                <input
+                  type="text"
+                  placeholder="Subject (optional)"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
+                />
+                <textarea
+                  placeholder="Message (optional)"
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  rows={3}
+                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm resize-none"
+                />
+                <button
+                  onClick={handleSendEmail}
+                  disabled={isProcessing || !emailRecipient}
+                  className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
+                >
+                  <Mail className="w-4 h-4" />
+                  {isProcessing ? "Sending..." : "Send Email"}
+                </button>
+              </div>
+            )}
+
+            {workflowStep === "complete" && (
+              <div className="ml-11">
+                <span className="text-sm text-green-400">✓ Email sent successfully to {emailRecipient}</span>
+                <button
+                  onClick={() => {
+                    setWorkflowStep("idle");
+                    setEmailRecipient("");
+                    setEmailSubject("");
+                    setEmailMessage("");
+                    setUploadedZipFile(null);
+                  }}
+                  className="ml-4 text-xs text-gray-400 hover:text-white"
+                >
+                  Send Another
+                </button>
+              </div>
             )}
           </div>
         </div>
