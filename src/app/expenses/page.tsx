@@ -550,22 +550,20 @@ export default function ExpensesPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setOutputMode("save")}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
-                  outputMode === "save"
-                    ? "bg-blue-600 text-white border-2 border-blue-500"
-                    : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
-                }`}
+                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${outputMode === "save"
+                  ? "bg-blue-600 text-white border-2 border-blue-500"
+                  : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
+                  }`}
               >
                 <Save className="w-4 h-4" />
                 Save to Folder
               </button>
               <button
                 onClick={() => setOutputMode("download")}
-                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
-                  outputMode === "download"
-                    ? "bg-blue-600 text-white border-2 border-blue-500"
-                    : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
-                }`}
+                className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${outputMode === "download"
+                  ? "bg-blue-600 text-white border-2 border-blue-500"
+                  : "bg-white/5 text-gray-400 border-2 border-white/10 hover:bg-white/10"
+                  }`}
               >
                 <FileText className="w-4 h-4" />
                 Download via Browser
@@ -593,8 +591,8 @@ export default function ExpensesPage() {
                   onClick={executeProcess}
                   disabled={isProcessing}
                   className={`px-6 py-2 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg active:scale-95 ${isProcessing
-                      ? "bg-gray-800 text-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-500 text-white"
+                    ? "bg-gray-800 text-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-500 text-white"
                     }`}
                 >
                   {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -676,11 +674,10 @@ export default function ExpensesPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete"
-                    ? "bg-green-600"
-                    : "bg-white/10"
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete"
+                  ? "bg-green-600"
+                  : "bg-white/10"
+                  }`}>
                   {workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete" ? (
                     <CheckCircle2 className="w-4 h-4 text-white" />
                   ) : (
@@ -736,11 +733,10 @@ export default function ExpensesPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  workflowStep === "complete"
-                    ? "bg-green-600"
-                    : "bg-white/10"
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "complete"
+                  ? "bg-green-600"
+                  : "bg-white/10"
+                  }`}>
                   {workflowStep === "complete" ? (
                     <CheckCircle2 className="w-4 h-4 text-white" />
                   ) : (
@@ -758,9 +754,11 @@ export default function ExpensesPage() {
               <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
                 {/* ZIP File Status */}
                 <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
+                    ZIP Archive <span className="text-red-500">*</span>
+                  </label>
                   {!zipData && !uploadedZipFile ? (
                     <>
-                      <label className="text-xs text-gray-400">Upload ZIP file (if not created above):</label>
                       <input
                         type="file"
                         accept=".zip"
@@ -777,13 +775,18 @@ export default function ExpensesPage() {
                     </div>
                   )}
                 </div>
-                <input
-                  type="email"
-                  placeholder="Recipient email"
-                  value={emailRecipient}
-                  onChange={(e) => setEmailRecipient(e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
-                />
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
+                    Recipient Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="e.g. finance@company.com"
+                    value={emailRecipient}
+                    onChange={(e) => setEmailRecipient(e.target.value)}
+                    className={`w-full bg-black/20 border ${!emailRecipient ? 'border-yellow-500/30' : 'border-white/10'} rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm`}
+                  />
+                </div>
                 <input
                   type="text"
                   placeholder="Subject (optional)"
@@ -800,12 +803,22 @@ export default function ExpensesPage() {
                 />
                 <button
                   onClick={handleSendEmail}
-                  disabled={isProcessing || !emailRecipient}
+                  disabled={isProcessing || !emailRecipient || (!zipData && !uploadedZipFile)}
                   className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
                 >
                   <Mail className="w-4 h-4" />
                   {isProcessing ? "Sending..." : "Send Email"}
                 </button>
+                {(!zipData && !uploadedZipFile) && (
+                  <p className="text-[10px] text-yellow-500/70 text-center">
+                    Please create or upload a ZIP file first
+                  </p>
+                )}
+                {!emailRecipient && (
+                  <p className="text-[10px] text-yellow-500/70 text-center">
+                    Recipient email is required
+                  </p>
+                )}
               </div>
             )}
 
