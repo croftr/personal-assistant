@@ -8,6 +8,7 @@ import {
 } from "@/lib/common/file-handler";
 import { generateCsv } from "@/lib/common/csv-formatter";
 import { processReceipts } from "@/lib/expenses/receipt-processor";
+import { saveExpenses, createExpenseReport, linkExpensesToReport } from "@/lib/expenses/expense-db-service";
 
 
 export async function POST(req: NextRequest) {
@@ -31,7 +32,31 @@ export async function POST(req: NextRequest) {
             const results = await processReceipts(filesToProcess);
             const csvContent = generateCsv(results);
 
-            return NextResponse.json({ success: true, csvContent, count: results.length, outputMode });
+            // Save expenses to database
+            const expenseIds = saveExpenses(results);
+
+            // Create expense report
+            const totalAmount = results.reduce((sum, exp) => sum + exp.amount, 0);
+            const today = new Date().toISOString().split("T")[0];
+            const reportId = createExpenseReport({
+                report_name: `Expense Report - ${today}`,
+                report_date: today,
+                total_amount: totalAmount,
+                expense_count: results.length,
+                currency: "GBP"
+            });
+
+            // Link expenses to report
+            linkExpensesToReport(reportId, expenseIds);
+
+            return NextResponse.json({
+                success: true,
+                csvContent,
+                count: results.length,
+                outputMode,
+                reportId,
+                expenseIds
+            });
         }
 
         // ---------------------------------------------------------
@@ -70,6 +95,9 @@ export async function POST(req: NextRequest) {
                 const results = await processReceipts(filesToProcess);
                 const csvContent = generateCsv(results);
 
+                // Save expenses to database
+                const expenseIds = saveExpenses(results);
+
                 // Only write to disk if outputMode is "save" (default behavior for backwards compatibility)
                 let csvPath = null;
                 if (outputMode !== "download") {
@@ -79,11 +107,28 @@ export async function POST(req: NextRequest) {
                     csvPath = outputPath;
                 }
 
+                // Create expense report
+                const totalAmount = results.reduce((sum, exp) => sum + exp.amount, 0);
+                const today = new Date().toISOString().split("T")[0];
+                const reportId = createExpenseReport({
+                    report_name: `Expense Report - ${today}`,
+                    report_date: today,
+                    total_amount: totalAmount,
+                    expense_count: results.length,
+                    csv_path: csvPath || undefined,
+                    currency: "GBP"
+                });
+
+                // Link expenses to report
+                linkExpensesToReport(reportId, expenseIds);
+
                 return NextResponse.json({
                     success: true,
                     csvPath,
                     csvContent: csvContent,
-                    outputMode: outputMode || "save"
+                    outputMode: outputMode || "save",
+                    reportId,
+                    expenseIds
                 });
             }
 

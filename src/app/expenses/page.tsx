@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, FolderOpen, Play, FileText, CheckCircle2, AlertCircle, Search, Save, FolderArchive, Mail, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, FolderOpen, Play, FileText, CheckCircle2, AlertCircle, Search, Save, FolderArchive, Mail, ChevronRight, History, Eye, Calendar, Trash2 } from "lucide-react";
 import { parseCsvToRows } from "@/lib/common/csv-formatter";
 import type { ExpenseRow } from "@/types/expenses";
+import type { ExpenseReport, StoredExpense } from "@/types/common";
 
 // --- File System Access API Types (Polyfill for TS) ---
 interface FileSystemHandle {
@@ -58,13 +59,21 @@ export default function ExpensesPage() {
   const [workflowStep, setWorkflowStep] = useState<"idle" | "zip" | "email" | "complete">("idle");
   const [zipData, setZipData] = useState<string>("");
   const [zipFileName, setZipFileName] = useState<string>("");
-  const [emailRecipient, setEmailRecipient] = useState<string>("");
+  const [emailRecipient, setEmailRecipient] = useState<string>("rob80659@gchq.gov.uk");
   const [emailSubject, setEmailSubject] = useState<string>("");
   const [emailMessage, setEmailMessage] = useState<string>("");
 
   // Standalone workflow inputs
   const [standaloneZipPath, setStandaloneZipPath] = useState<string>("");
   const [uploadedZipFile, setUploadedZipFile] = useState<File | null>(null);
+
+  // Report History State
+  const [reports, setReports] = useState<ExpenseReport[]>([]);
+  const [selectedReport, setSelectedReport] = useState<ExpenseReport | null>(null);
+  const [reportExpenses, setReportExpenses] = useState<StoredExpense[]>([]);
+  const [showReportHistory, setShowReportHistory] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [viewingReport, setViewingReport] = useState(false);
 
   // Derived Mode
   const isPickerMode = directoryHandle !== null;
@@ -88,6 +97,75 @@ export default function ExpensesPage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   };
+
+  const loadReports = async () => {
+    setLoadingReports(true);
+    try {
+      const response = await fetch('/api/expense-reports');
+      if (!response.ok) throw new Error('Failed to load reports');
+      const data = await response.json();
+      setReports(data.reports);
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const loadReportDetails = async (reportId: number) => {
+    setViewingReport(true);
+    try {
+      const response = await fetch(`/api/expense-reports?id=${reportId}&includeExpenses=true`);
+      if (!response.ok) throw new Error('Failed to load report details');
+      const data = await response.json();
+      setSelectedReport(data.report);
+      setReportExpenses(data.expenses);
+    } catch (error) {
+      console.error('Error loading report details:', error);
+    }
+  };
+
+  const closeReportView = () => {
+    setViewingReport(false);
+    setSelectedReport(null);
+    setReportExpenses([]);
+  };
+
+  const handleDeleteReport = async (reportId: number) => {
+    if (!confirm('Are you sure you want to delete this report? This will also delete all associated expenses.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/expense-reports?id=${reportId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete report');
+
+      // Refresh the reports list
+      await loadReports();
+
+      // Close modal if viewing the deleted report
+      if (selectedReport?.id === reportId) {
+        closeReportView();
+      }
+
+      setMessage('Report deleted successfully');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      setMessage('Failed to delete report');
+      setStatus('error');
+    }
+  };
+
+  // Load reports when showing history
+  useEffect(() => {
+    if (showReportHistory && reports.length === 0) {
+      loadReports();
+    }
+  }, [showReportHistory]);
 
   // --- Handlers ---
 
@@ -678,25 +756,30 @@ export default function ExpensesPage() {
 
             {workflowStep !== "complete" && (
               <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
-                {!zipData && !uploadedZipFile && (
-                  <>
-                    <label className="text-xs text-gray-400">Upload ZIP file (if not created above):</label>
-                    <input
-                      type="file"
-                      accept=".zip"
-                      onChange={(e) => setUploadedZipFile(e.target.files?.[0] || null)}
-                      className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500"
-                    />
-                  </>
-                )}
-                {(zipData || uploadedZipFile) && (
-                  <p className="text-xs text-green-400">
-                    ✓ ZIP file ready: {uploadedZipFile?.name || zipFileName}
-                  </p>
-                )}
+                {/* ZIP File Status */}
+                <div className="space-y-2">
+                  {!zipData && !uploadedZipFile ? (
+                    <>
+                      <label className="text-xs text-gray-400">Upload ZIP file (if not created above):</label>
+                      <input
+                        type="file"
+                        accept=".zip"
+                        onChange={(e) => setUploadedZipFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500"
+                      />
+                    </>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-green-600/10 border border-green-500/20">
+                      <p className="text-sm text-green-400 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        ZIP file attached: <span className="font-mono">{uploadedZipFile?.name || zipFileName}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <input
                   type="email"
-                  placeholder="Recipient email *"
+                  placeholder="Recipient email"
                   value={emailRecipient}
                   onChange={(e) => setEmailRecipient(e.target.value)}
                   className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
@@ -732,7 +815,7 @@ export default function ExpensesPage() {
                 <button
                   onClick={() => {
                     setWorkflowStep("idle");
-                    setEmailRecipient("");
+                    setEmailRecipient("rob80659@gchq.gov.uk");
                     setEmailSubject("");
                     setEmailMessage("");
                     setUploadedZipFile(null);
@@ -745,6 +828,166 @@ export default function ExpensesPage() {
             )}
           </div>
         </div>
+
+        {/* Report History Section */}
+        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-300 flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Report History
+            </h3>
+            <button
+              onClick={() => {
+                setShowReportHistory(!showReportHistory);
+                if (!showReportHistory && reports.length === 0) {
+                  loadReports();
+                }
+              }}
+              className="px-4 py-2 rounded-lg font-medium bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-2 text-sm"
+            >
+              {showReportHistory ? 'Hide History' : 'View History'}
+            </button>
+          </div>
+
+          {showReportHistory && (
+            <div className="space-y-3 animate-in fade-in">
+              {loadingReports ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                </div>
+              ) : reports.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No reports found. Process some receipts to create your first report!</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {reports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="p-4 rounded-xl bg-black/20 border border-white/5 hover:border-white/10 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-4 h-4 text-blue-400" />
+                            <h4 className="font-medium text-gray-200">{report.report_name}</h4>
+                          </div>
+                          <div className="mt-2 flex items-center gap-4 text-sm text-gray-400">
+                            <span>{report.expense_count} expenses</span>
+                            <span className="text-green-400 font-mono">
+                              £{report.total_amount.toFixed(2)}
+                            </span>
+                            <span className="text-xs">
+                              {new Date(report.created_at).toLocaleDateString('en-GB')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => loadReportDetails(report.id)}
+                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 transition-all text-sm"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteReport(report.id);
+                            }}
+                            className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 flex items-center gap-2 transition-all text-sm"
+                            title="Delete report"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Report Detail Modal */}
+        {viewingReport && selectedReport && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto glass rounded-3xl p-8 space-y-6 animate-in slide-in-from-bottom-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-100">{selectedReport.report_name}</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Created: {new Date(selectedReport.created_at).toLocaleString('en-GB')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDeleteReport(selectedReport.id)}
+                    className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 flex items-center gap-2 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Report
+                  </button>
+                  <button
+                    onClick={closeReportView}
+                    className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-blue-600/20 border border-blue-500/20">
+                  <p className="text-sm text-gray-400">Total Expenses</p>
+                  <p className="text-2xl font-bold text-blue-400">{selectedReport.expense_count}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-green-600/20 border border-green-500/20">
+                  <p className="text-sm text-gray-400">Total Amount</p>
+                  <p className="text-2xl font-bold text-green-400">£{selectedReport.total_amount.toFixed(2)}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-purple-600/20 border border-purple-500/20">
+                  <p className="text-sm text-gray-400">Report Date</p>
+                  <p className="text-2xl font-bold text-purple-400">
+                    {new Date(selectedReport.report_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-gray-300">Expense Details</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-gray-400 uppercase bg-white/5">
+                      <tr>
+                        <th className="px-4 py-3 rounded-tl-lg">Receipt</th>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Description</th>
+                        <th className="px-4 py-3 text-right rounded-tr-lg">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {reportExpenses.map((expense) => (
+                        <tr key={expense.id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 font-mono text-gray-400 truncate max-w-[150px]" title={expense.file_name}>
+                            {expense.file_name}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-gray-400 whitespace-nowrap">{expense.date}</td>
+                          <td className="px-4 py-3">{expense.description}</td>
+                          <td className="px-4 py-3 text-right font-mono text-green-400 whitespace-nowrap">
+                            £{expense.amount.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="pt-4 border-t border-white/5 flex justify-between items-center text-xs text-gray-500">
           <span>v2.0.0</span>
