@@ -8,7 +8,9 @@
       "Bash(npm run dev:*)",
       "Bash(tasklist:*)",
       "Bash(findstr:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)"
     ]
   }
 }
