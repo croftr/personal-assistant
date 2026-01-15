@@ -110,6 +110,37 @@ function initializeSchema(db: Database.Database) {
         );
     `);
 
+    // Pensions table - stores pension details
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS pensions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT,
+            amount REAL NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `);
+
+    // Payslips table - stores payslip data
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS payslips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL UNIQUE,
+            pay_date TEXT NOT NULL,
+            net_pay REAL NOT NULL,
+            gross_pay REAL,
+            tax_paid REAL,
+            ni_paid REAL,
+            pension_contribution REAL,
+            other_deductions REAL,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `);
+
     // Create indexes for better query performance
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_documents_assistant_type ON documents(assistant_type);
@@ -118,6 +149,9 @@ function initializeSchema(db: Database.Database) {
         CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
         CREATE INDEX IF NOT EXISTS idx_expenses_created_at ON expenses(created_at);
         CREATE INDEX IF NOT EXISTS idx_document_content_document_id ON document_content(document_id);
+        CREATE INDEX IF NOT EXISTS idx_pensions_name ON pensions(name);
+        CREATE INDEX IF NOT EXISTS idx_payslips_pay_date ON payslips(pay_date);
+        CREATE INDEX IF NOT EXISTS idx_payslips_created_at ON payslips(created_at);
     `);
 
     console.log("Database schema initialized at:", DB_PATH);
