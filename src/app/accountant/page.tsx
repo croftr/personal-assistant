@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Calculator, FileText, Mail, Upload, Download, Plus, ExternalLink, Trash2, Edit2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Calculator, FileText, Mail, Upload, Download, Plus, ExternalLink, Trash2, Edit2, ChevronDown, ChevronUp } from "lucide-react";
 import type { Pension, Payslip, ProcessedPayslip } from "@/types/accountant";
 import toast, { Toaster } from "react-hot-toast";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { groupByFinancialYear, formatFinancialYear } from "@/lib/utils/financial-year";
 
 export default function AccountantPage() {
   const [pensions, setPensions] = useState<Pension[]>([]);
@@ -35,6 +36,57 @@ export default function AccountantPage() {
     onConfirm: () => {},
     type: "warning"
   });
+
+  // Financial year grouping state
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
+
+  // Group payslips by financial year
+  const payslipsByYear = useMemo(() => groupByFinancialYear(payslips), [payslips]);
+  const financialYears = useMemo(() => Object.keys(payslipsByYear).sort().reverse(), [payslipsByYear]);
+
+  // Calculate totals per financial year
+  const yearTotals = useMemo(() => {
+    const totals: Record<string, {
+      count: number;
+      netPay: number;
+      taxPaid: number;
+      niPaid: number;
+      pensionContribution: number;
+    }> = {};
+
+    Object.entries(payslipsByYear).forEach(([year, yearPayslips]) => {
+      totals[year] = {
+        count: yearPayslips.length,
+        netPay: yearPayslips.reduce((sum, p) => sum + p.net_pay, 0),
+        taxPaid: yearPayslips.reduce((sum, p) => sum + (p.tax_paid || 0), 0),
+        niPaid: yearPayslips.reduce((sum, p) => sum + (p.ni_paid || 0), 0),
+        pensionContribution: yearPayslips.reduce((sum, p) => sum + (p.pension_contribution || 0), 0),
+      };
+    });
+
+    return totals;
+  }, [payslipsByYear]);
+
+  // Calculate grand totals
+  const grandTotals = useMemo(() => ({
+    count: payslips.length,
+    netPay: payslips.reduce((sum, p) => sum + p.net_pay, 0),
+    taxPaid: payslips.reduce((sum, p) => sum + (p.tax_paid || 0), 0),
+    niPaid: payslips.reduce((sum, p) => sum + (p.ni_paid || 0), 0),
+    pensionContribution: payslips.reduce((sum, p) => sum + (p.pension_contribution || 0), 0),
+  }), [payslips]);
+
+  const toggleYear = (year: string) => {
+    setExpandedYears(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(year)) {
+        newSet.delete(year);
+      } else {
+        newSet.add(year);
+      }
+      return newSet;
+    });
+  };
 
   // Fetch pensions on mount
   useEffect(() => {
@@ -502,7 +554,48 @@ export default function AccountantPage() {
             </label>
           </div>
 
-          {/* Payslips List */}
+          {/* Grand Total Summary - Most Important */}
+          {!payslipsLoading && payslips.length > 0 && (
+            <div className="glass rounded-lg p-6 bg-gradient-to-br from-green-600/20 to-blue-600/20 border-2 border-green-500/30">
+              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <Calculator className="text-green-400" size={24} />
+                Grand Total (All Years)
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-gray-300">Total Net Pay</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    £{grandTotals.netPay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total Tax Paid</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    £{grandTotals.taxPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total NI Paid</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    £{grandTotals.niPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total Pension</p>
+                  <p className="text-2xl font-bold text-purple-400">
+                    £{grandTotals.pensionContribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-600/50">
+                <p className="text-sm text-gray-300">
+                  {grandTotals.count} payslip{grandTotals.count !== 1 ? 's' : ''} across {financialYears.length} financial year{financialYears.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Payslips by Financial Year */}
           {payslipsLoading ? (
             <div className="text-center py-8 text-gray-400">Loading payslips...</div>
           ) : payslips.length === 0 ? (
@@ -510,115 +603,130 @@ export default function AccountantPage() {
               No payslips uploaded yet. Upload a PDF payslip to get started.
             </div>
           ) : (
-            <>
-              <div className="space-y-3">
-                {payslips.map((payslip) => (
-                  <div
-                    key={payslip.id}
-                    className="glass rounded-lg p-4 hover:bg-white/10 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
+            <div className="space-y-4">
+              {financialYears.map((year) => {
+                const yearPayslips = payslipsByYear[year];
+                const totals = yearTotals[year];
+                const isExpanded = expandedYears.has(year);
+
+                return (
+                  <div key={year} className="glass rounded-lg overflow-hidden">
+                    {/* Year Header with Summary */}
+                    <button
+                      onClick={() => toggleYear(year)}
+                      className="w-full p-4 hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <FileText size={20} className="text-blue-400" />
+                          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                          <h3 className="text-xl font-bold">{formatFinancialYear(year)}</h3>
+                          <span className="text-sm text-gray-400">({totals.count} payslip{totals.count !== 1 ? 's' : ''})</span>
+                        </div>
+                        <div className="flex gap-6 text-sm">
                           <div>
-                            <h3 className="text-lg font-semibold">{payslip.file_name}</h3>
-                            <p className="text-sm text-gray-400">Pay Date: {payslip.pay_date}</p>
+                            <span className="text-gray-400">Net: </span>
+                            <span className="font-bold text-green-400">
+                              £{totals.netPay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Tax: </span>
+                            <span className="font-bold text-red-400">
+                              £{totals.taxPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Pension: </span>
+                            <span className="font-bold text-purple-400">
+                              £{totals.pensionContribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                          <div>
-                            <p className="text-xs text-gray-400">Net Pay</p>
-                            <p className="text-lg font-bold text-green-400">
-                              £{payslip.net_pay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                          {payslip.gross_pay && (
-                            <div>
-                              <p className="text-xs text-gray-400">Gross Pay</p>
-                              <p className="text-lg font-semibold">
-                                £{payslip.gross_pay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                          {payslip.tax_paid && (
-                            <div>
-                              <p className="text-xs text-gray-400">Tax Paid</p>
-                              <p className="text-lg font-semibold text-red-400">
-                                £{payslip.tax_paid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                          {payslip.ni_paid && (
-                            <div>
-                              <p className="text-xs text-gray-400">NI Paid</p>
-                              <p className="text-lg font-semibold text-red-400">
-                                £{payslip.ni_paid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                          {payslip.pension_contribution && (
-                            <div>
-                              <p className="text-xs text-gray-400">Pension</p>
-                              <p className="text-lg font-semibold text-purple-400">
-                                £{payslip.pension_contribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {payslip.notes && (
-                          <p className="text-sm text-gray-400 mt-3">{payslip.notes}</p>
-                        )}
                       </div>
+                    </button>
 
-                      <button
-                        onClick={() => handleDeletePayslip(payslip.id)}
-                        className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    {/* Expanded Payslip Details */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-700/50 p-4 bg-black/20">
+                        <div className="space-y-3">
+                          {yearPayslips.map((payslip) => (
+                            <div
+                              key={payslip.id}
+                              className="glass rounded-lg p-4 hover:bg-white/10 transition-colors"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <FileText size={18} className="text-blue-400" />
+                                    <div>
+                                      <h4 className="font-semibold">{payslip.file_name}</h4>
+                                      <p className="text-xs text-gray-400">Pay Date: {payslip.pay_date}</p>
+                                    </div>
+                                  </div>
 
-              {/* Payslip Summary */}
-              <div className="glass rounded-lg p-4 bg-green-600/10">
-                <h3 className="text-lg font-semibold mb-3">Summary</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-400">Total Net Pay</p>
-                    <p className="text-xl font-bold text-green-400">
-                      £{payslips.reduce((sum, p) => sum + p.net_pay, 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                                    <div>
+                                      <p className="text-xs text-gray-400">Net Pay</p>
+                                      <p className="text-base font-bold text-green-400">
+                                        £{payslip.net_pay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </p>
+                                    </div>
+                                    {payslip.gross_pay && (
+                                      <div>
+                                        <p className="text-xs text-gray-400">Gross Pay</p>
+                                        <p className="text-base font-semibold">
+                                          £{payslip.gross_pay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {payslip.tax_paid && (
+                                      <div>
+                                        <p className="text-xs text-gray-400">Tax Paid</p>
+                                        <p className="text-base font-semibold text-red-400">
+                                          £{payslip.tax_paid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {payslip.ni_paid && (
+                                      <div>
+                                        <p className="text-xs text-gray-400">NI Paid</p>
+                                        <p className="text-base font-semibold text-red-400">
+                                          £{payslip.ni_paid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {payslip.pension_contribution && (
+                                      <div>
+                                        <p className="text-xs text-gray-400">Pension</p>
+                                        <p className="text-base font-semibold text-purple-400">
+                                          £{payslip.pension_contribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {payslip.notes && (
+                                    <p className="text-sm text-gray-400 mt-2">{payslip.notes}</p>
+                                  )}
+                                </div>
+
+                                <button
+                                  onClick={() => handleDeletePayslip(payslip.id)}
+                                  className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Total Tax Paid</p>
-                    <p className="text-xl font-bold text-red-400">
-                      £{payslips.reduce((sum, p) => sum + (p.tax_paid || 0), 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Total NI Paid</p>
-                    <p className="text-xl font-bold text-red-400">
-                      £{payslips.reduce((sum, p) => sum + (p.ni_paid || 0), 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Total Pension</p>
-                    <p className="text-xl font-bold text-purple-400">
-                      £{payslips.reduce((sum, p) => sum + (p.pension_contribution || 0), 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-400 mt-3">
-                  {payslips.length} payslip{payslips.length !== 1 ? 's' : ''} recorded
-                </p>
-              </div>
-            </>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
