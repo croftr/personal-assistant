@@ -5,6 +5,8 @@ import { Loader2, FolderOpen, Play, FileText, CheckCircle2, AlertCircle, Search,
 import { parseCsvToRows } from "@/lib/common/csv-formatter";
 import type { ExpenseRow } from "@/types/expenses";
 import type { ExpenseReport, StoredExpense } from "@/types/common";
+import toast, { Toaster } from 'react-hot-toast';
+import { ExpenseStatistics } from "@/components/expenses/ExpenseStatistics";
 
 // --- File System Access API Types (Polyfill for TS) ---
 interface FileSystemHandle {
@@ -52,6 +54,10 @@ export default function ExpensesPage() {
   const [totalAmount, setTotalAmount] = useState(0);
   const [csvContent, setCsvContent] = useState<string>("");
 
+  // Report Name
+  const today = new Date().toISOString().split("T")[0];
+  const [reportName, setReportName] = useState<string>(`Expense Report - ${today}`);
+
   // Output Mode
   const [outputMode, setOutputMode] = useState<"save" | "download">("save");
 
@@ -74,6 +80,19 @@ export default function ExpensesPage() {
   const [showReportHistory, setShowReportHistory] = useState(false);
   const [loadingReports, setLoadingReports] = useState(false);
   const [viewingReport, setViewingReport] = useState(false);
+
+  // Statistics State
+  const [statistics, setStatistics] = useState<{
+    total_reports: number;
+    total_expenses: number;
+    total_amount: number;
+    categories: {
+      meals: { count: number; amount: number };
+      travel: { count: number; amount: number };
+      accommodation: { count: number; amount: number };
+      other: { count: number; amount: number };
+    };
+  } | null>(null);
 
   // Derived Mode
   const isPickerMode = directoryHandle !== null;
@@ -107,8 +126,21 @@ export default function ExpensesPage() {
       setReports(data.reports);
     } catch (error) {
       console.error('Error loading reports:', error);
+      toast.error('Failed to load report history');
     } finally {
       setLoadingReports(false);
+    }
+  };
+
+  const loadStatistics = async () => {
+    try {
+      const response = await fetch('/api/expense-reports?includeStatistics=true');
+      if (!response.ok) throw new Error('Failed to load statistics');
+      const data = await response.json();
+      setStatistics(data.statistics);
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+      toast.error('Failed to load statistics');
     }
   };
 
@@ -122,6 +154,8 @@ export default function ExpensesPage() {
       setReportExpenses(data.expenses);
     } catch (error) {
       console.error('Error loading report details:', error);
+      toast.error('Failed to load report details');
+      setViewingReport(false);
     }
   };
 
@@ -132,38 +166,64 @@ export default function ExpensesPage() {
   };
 
   const handleDeleteReport = async (reportId: number) => {
-    if (!confirm('Are you sure you want to delete this report? This will also delete all associated expenses.')) {
-      return;
-    }
+    // Use toast.promise for confirmation-style interaction
+    toast((t) => (
+      <div className="flex flex-col gap-3">
+        <p className="font-medium">Delete this report?</p>
+        <p className="text-sm text-gray-600">This will also delete all associated expenses.</p>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                const response = await fetch(`/api/expense-reports?id=${reportId}`, {
+                  method: 'DELETE',
+                });
 
-    try {
-      const response = await fetch(`/api/expense-reports?id=${reportId}`, {
-        method: 'DELETE',
-      });
+                if (!response.ok) throw new Error('Failed to delete report');
 
-      if (!response.ok) throw new Error('Failed to delete report');
+                // Refresh the reports list and statistics
+                await loadReports();
+                await loadStatistics();
 
-      // Refresh the reports list
-      await loadReports();
+                // Close modal if viewing the deleted report
+                if (selectedReport?.id === reportId) {
+                  closeReportView();
+                }
 
-      // Close modal if viewing the deleted report
-      if (selectedReport?.id === reportId) {
-        closeReportView();
-      }
-
-      setMessage('Report deleted successfully');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Error deleting report:', error);
-      setMessage('Failed to delete report');
-      setStatus('error');
-    }
+                toast.success('Report deleted successfully');
+              } catch (error) {
+                console.error('Error deleting report:', error);
+                toast.error('Failed to delete report');
+              }
+            }}
+            className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity,
+      position: 'top-center',
+    });
   };
 
-  // Load reports when showing history
+  // Load reports and statistics when showing history
   useEffect(() => {
-    if (showReportHistory && reports.length === 0) {
-      loadReports();
+    if (showReportHistory) {
+      if (reports.length === 0) {
+        loadReports();
+      }
+      if (!statistics) {
+        loadStatistics();
+      }
     }
   }, [showReportHistory]);
 
@@ -262,10 +322,12 @@ export default function ExpensesPage() {
       setPathModeFiles(data.files);
       setStatus("idle");
       setMessage("");
+      toast.success(`Found ${data.files.length} receipt files`);
 
     } catch (err: any) {
       setStatus("error");
       setMessage(err.message);
+      toast.error(err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -308,6 +370,7 @@ export default function ExpensesPage() {
         const formData = new FormData();
         selectedFiles.forEach(f => formData.append("files", f));
         formData.append("outputMode", outputMode);
+        formData.append("reportName", reportName);
 
         if (formData.getAll("files").length === 0) throw new Error("No valid files.");
 
@@ -325,7 +388,7 @@ export default function ExpensesPage() {
         const response = await fetch("/api/process-expenses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: folderPath, action: "process", outputMode }),
+          body: JSON.stringify({ path: folderPath, action: "process", outputMode, reportName }),
         });
 
         if (!response.ok) throw new Error((await response.json()).error);
@@ -349,13 +412,23 @@ export default function ExpensesPage() {
       parseCsvHelper(csvContent);
       setCsvContent(csvContent); // Store for workflow
       setStatus("success");
-      setMessage(outputMode === "download" ? "Success! Report downloaded." : "Success! Report saved to folder.");
+      const successMsg = outputMode === "download" ? "Success! Report downloaded." : "Success! Report saved to folder.";
+      setMessage(successMsg);
+      toast.success(successMsg);
       setWorkflowStep("idle"); // Reset workflow
+
+      // Reload statistics if report history is shown
+      if (showReportHistory) {
+        await loadStatistics();
+        await loadReports();
+      }
 
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setMessage(err.message || "Failed to process.");
+      const errorMsg = err.message || "Failed to process.";
+      setMessage(errorMsg);
+      toast.error(errorMsg);
 
       // Cleanup if open
       if (writable) {
@@ -415,6 +488,7 @@ export default function ExpensesPage() {
       setZipData(data.zipData);
       setZipFileName(data.fileName);
       setMessage("ZIP file created successfully!");
+      toast.success("ZIP file created and downloaded!");
 
       // Auto-download the zip
       const zipBlob = new Blob([Buffer.from(data.zipData, 'base64')], { type: 'application/zip' });
@@ -429,7 +503,9 @@ export default function ExpensesPage() {
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setMessage(err.message || "Failed to create ZIP");
+      const errorMsg = err.message || "Failed to create ZIP";
+      setMessage(errorMsg);
+      toast.error(errorMsg);
       setWorkflowStep("idle");
     } finally {
       setIsProcessing(false);
@@ -438,7 +514,9 @@ export default function ExpensesPage() {
 
   const handleSendEmail = async () => {
     if (!emailRecipient) {
-      setMessage("Please enter recipient email");
+      const msg = "Please enter recipient email";
+      setMessage(msg);
+      toast.error(msg);
       return;
     }
 
@@ -459,7 +537,9 @@ export default function ExpensesPage() {
       }
 
       if (!zipDataToSend) {
-        setMessage("No ZIP file available. Please create or upload a ZIP file first.");
+        const msg = "No ZIP file available. Please create or upload a ZIP file first.";
+        setMessage(msg);
+        toast.error(msg);
         setIsProcessing(false);
         return;
       }
@@ -469,8 +549,8 @@ export default function ExpensesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient: emailRecipient,
-          subject: emailSubject || `Expense Report - ${new Date().toLocaleDateString("en-GB")}`,
-          message: emailMessage || "Please find attached the expense report with receipts.",
+          subject: emailSubject || reportName,
+          message: emailMessage || "Please find your expenses attached Sir",
           zipData: zipDataToSend,
           fileName: fileNameToSend,
         }),
@@ -478,12 +558,16 @@ export default function ExpensesPage() {
 
       if (!response.ok) throw new Error((await response.json()).error);
 
-      setMessage("Email sent successfully!");
+      const successMsg = `Email sent successfully to ${emailRecipient}!`;
+      setMessage(successMsg);
+      toast.success(successMsg);
       setWorkflowStep("complete");
     } catch (err: any) {
       console.error(err);
       setStatus("error");
-      setMessage(err.message || "Failed to send email");
+      const errorMsg = err.message || "Failed to send email";
+      setMessage(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsProcessing(false);
     }
@@ -491,7 +575,29 @@ export default function ExpensesPage() {
 
   return (
     <main className="min-h-screen gradient-bg flex flex-col items-center p-8 text-white">
-      <div className="max-w-4xl w-full glass rounded-3xl p-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1f2937',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
+      <div className="max-w-7xl w-full glass rounded-3xl p-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
 
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
@@ -575,6 +681,18 @@ export default function ExpensesPage() {
             {outputMode === "save" && !isPickerMode && (
               <p className="text-xs text-gray-400 ml-1">CSV will be saved to the receipt folder</p>
             )}
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-300 ml-1">Report Name</label>
+            <input
+              type="text"
+              value={reportName}
+              onChange={(e) => setReportName(e.target.value)}
+              placeholder="Enter report name"
+              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 transition-all"
+            />
+            <p className="text-xs text-gray-400 ml-1">This name will be used for the database report entry</p>
           </div>
 
           {(fileList.length > 0 || status !== 'idle') && (
@@ -663,12 +781,16 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Workflow Section - Always Visible */}
-        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-6">
-          <h3 className="font-semibold text-gray-300 flex items-center gap-2">
-            <ChevronRight className="w-4 h-4" />
-            Additional Actions (Optional)
-          </h3>
+        {/* Main Content and Report History Grid */}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left/Main Column - Workflow and Additional Actions */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Workflow Section - Always Visible */}
+            <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-6">
+              <h3 className="font-semibold text-gray-300 flex items-center gap-2">
+                <ChevronRight className="w-4 h-4" />
+                Additional Actions (Optional)
+              </h3>
 
           {/* Step 1: Create ZIP */}
           <div className="space-y-3">
@@ -789,13 +911,13 @@ export default function ExpensesPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Subject (optional)"
+                  placeholder={`Subject (optional, defaults to: ${reportName})`}
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
                   className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
                 />
                 <textarea
-                  placeholder="Message (optional)"
+                  placeholder="Message (optional, defaults to: Please find your expenses attached Sir)"
                   value={emailMessage}
                   onChange={(e) => setEmailMessage(e.target.value)}
                   rows={3}
@@ -840,94 +962,105 @@ export default function ExpensesPage() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Report History Section */}
-        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-300 flex items-center gap-2">
-              <History className="w-4 h-4" />
-              Report History
-            </h3>
-            <button
-              onClick={() => {
-                setShowReportHistory(!showReportHistory);
-                if (!showReportHistory && reports.length === 0) {
-                  loadReports();
-                }
-              }}
-              className="px-4 py-2 rounded-lg font-medium bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-2 text-sm"
-            >
-              {showReportHistory ? 'Hide History' : 'View History'}
-            </button>
+            </div>
           </div>
 
-          {showReportHistory && (
-            <div className="space-y-3 animate-in fade-in">
-              {loadingReports ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                </div>
-              ) : reports.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No reports found. Process some receipts to create your first report!</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {reports.map((report) => (
-                    <div
-                      key={report.id}
-                      className="p-4 rounded-xl bg-black/20 border border-white/5 hover:border-white/10 transition-all"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <Calendar className="w-4 h-4 text-blue-400" />
-                            <h4 className="font-medium text-gray-200">{report.report_name}</h4>
-                          </div>
-                          <div className="mt-2 flex items-center gap-4 text-sm text-gray-400">
-                            <span>{report.expense_count} expenses</span>
-                            <span className="text-green-400 font-mono">
-                              £{report.total_amount.toFixed(2)}
-                            </span>
-                            <span className="text-xs">
-                              {new Date(report.created_at).toLocaleDateString('en-GB')}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => loadReportDetails(report.id)}
-                            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 transition-all text-sm"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteReport(report.id);
-                            }}
-                            className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 flex items-center gap-2 transition-all text-sm"
-                            title="Delete report"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
+          {/* Right Column - Report History */}
+          <div className="lg:col-span-1">
+            <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4 lg:sticky lg:top-8">
+              <div className="flex flex-col gap-3">
+                <h3 className="font-semibold text-gray-300 flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Report History
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowReportHistory(!showReportHistory);
+                    if (!showReportHistory && reports.length === 0) {
+                      loadReports();
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg font-medium bg-white/10 hover:bg-white/20 text-white transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  {showReportHistory ? 'Hide History' : 'View History'}
+                </button>
+              </div>
+
+              {showReportHistory && (
+                <div className="space-y-3 animate-in fade-in">
+                  {/* Statistics Summary */}
+                  {statistics && (
+                    <div className="mb-4">
+                      <ExpenseStatistics statistics={statistics} />
                     </div>
-                  ))}
+                  )}
+
+                  {loadingReports ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                    </div>
+                  ) : reports.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No reports found. Process some receipts to create your first report!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                      {reports.map((report) => (
+                        <div
+                          key={report.id}
+                          className="p-4 rounded-xl bg-black/20 border border-white/5 hover:border-white/10 transition-all"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-blue-400" />
+                                <h4 className="font-medium text-gray-200 text-sm">{report.report_name}</h4>
+                              </div>
+                              <div className="mt-2 flex flex-col gap-1 text-sm text-gray-400">
+                                <span>{report.expense_count} expenses</span>
+                                <span className="text-green-400 font-mono">
+                                  £{report.total_amount.toFixed(2)}
+                                </span>
+                                <span className="text-xs">
+                                  {new Date(report.created_at).toLocaleDateString('en-GB')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => loadReportDetails(report.id)}
+                                className="flex-1 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all text-sm"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteReport(report.id);
+                                }}
+                                className="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/30 flex items-center gap-2 transition-all text-sm"
+                                title="Delete report"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Report Detail Modal */}
         {viewingReport && selectedReport && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-            <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto glass rounded-3xl p-8 space-y-6 animate-in slide-in-from-bottom-5">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 border border-white/20 rounded-3xl p-8 space-y-6 animate-in slide-in-from-bottom-5 shadow-2xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-100">{selectedReport.report_name}</h2>

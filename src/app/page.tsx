@@ -1,9 +1,42 @@
 "use client";
 
-import { Receipt, Calculator } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Receipt, Calculator, TrendingUp } from "lucide-react";
 import { AssistantCard } from "@/components/common/AssistantCard";
+import { ExpenseStatistics } from "@/components/expenses/ExpenseStatistics";
 
 export default function Home() {
+  const [statistics, setStatistics] = useState<{
+    total_reports: number;
+    total_expenses: number;
+    total_amount: number;
+    categories: {
+      meals: { count: number; amount: number };
+      travel: { count: number; amount: number };
+      accommodation: { count: number; amount: number };
+      other: { count: number; amount: number };
+    };
+  } | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    const loadStatistics = async () => {
+      setLoadingStats(true);
+      try {
+        const response = await fetch('/api/expense-reports?includeStatistics=true');
+        if (response.ok) {
+          const data = await response.json();
+          setStatistics(data.statistics);
+        }
+      } catch (error) {
+        console.error('Error loading statistics:', error);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    loadStatistics();
+  }, []);
   return (
     <main className="min-h-screen gradient-bg flex flex-col items-center justify-center p-8 text-white">
       <div className="max-w-5xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700">
@@ -16,25 +49,49 @@ export default function Home() {
           <p className="text-2xl text-gray-300">How can I help you today?</p>
         </div>
 
-        {/* Assistant Cards */}
-        <div className="grid md:grid-cols-2 gap-8">
-          <AssistantCard
-            title="Expense Processor"
-            description="Process receipts and generate expense reports with AI"
-            icon={Receipt}
-            href="/expenses"
-            iconColor="text-blue-400"
-            iconBgColor="bg-blue-600/20"
-          />
+        {/* Main Content Grid */}
+        <div className="grid md:grid-cols-3 gap-8">
+          {/* Assistant Cards */}
+          <div className="md:col-span-2 grid md:grid-cols-2 gap-8">
+            <AssistantCard
+              title="Expense Processor"
+              description="Process receipts and generate expense reports with AI"
+              icon={Receipt}
+              href="/expenses"
+              iconColor="text-blue-400"
+              iconBgColor="bg-blue-600/20"
+            />
 
-          <AssistantCard
-            title="Accountant"
-            description="Financial analysis, document processing, and reporting tools"
-            icon={Calculator}
-            href="/accountant"
-            iconColor="text-purple-400"
-            iconBgColor="bg-purple-600/20"
-          />
+            <AssistantCard
+              title="Accountant"
+              description="Financial analysis, document processing, and reporting tools"
+              icon={Calculator}
+              href="/accountant"
+              iconColor="text-purple-400"
+              iconBgColor="bg-purple-600/20"
+            />
+          </div>
+
+          {/* Expense Statistics */}
+          <div className="md:col-span-1">
+            <div className="glass rounded-2xl p-6 space-y-3 h-full">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-5 h-5 text-green-400" />
+                <h3 className="font-semibold text-gray-200">Expense Overview</h3>
+              </div>
+              {loadingStats ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                </div>
+              ) : statistics && statistics.total_reports > 0 ? (
+                <ExpenseStatistics statistics={statistics} />
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-sm">No expense data yet. Process some receipts to see your statistics!</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer Info */}

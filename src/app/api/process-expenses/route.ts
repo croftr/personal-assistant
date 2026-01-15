@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
             const formData = await req.formData();
             const rawFiles = formData.getAll("files") as File[];
             const outputMode = formData.get("outputMode") as string || "save";
+            const reportName = formData.get("reportName") as string;
 
             if (!rawFiles || rawFiles.length === 0) {
                 return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
             const totalAmount = results.reduce((sum, exp) => sum + exp.amount, 0);
             const today = new Date().toISOString().split("T")[0];
             const reportId = createExpenseReport({
-                report_name: `Expense Report - ${today}`,
+                report_name: reportName || `Expense Report - ${today}`,
                 report_date: today,
                 total_amount: totalAmount,
                 expense_count: results.length,
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
         // ---------------------------------------------------------
         if (contentType.includes("application/json")) {
             const body = await req.json();
-            const { path: dirPath, action, outputMode } = body;
+            const { path: dirPath, action, outputMode, reportName } = body;
 
             if (!dirPath) {
                 return NextResponse.json({ error: "Directory path is required" }, { status: 400 });
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
                 const totalAmount = results.reduce((sum, exp) => sum + exp.amount, 0);
                 const today = new Date().toISOString().split("T")[0];
                 const reportId = createExpenseReport({
-                    report_name: `Expense Report - ${today}`,
+                    report_name: reportName || `Expense Report - ${today}`,
                     report_date: today,
                     total_amount: totalAmount,
                     expense_count: results.length,

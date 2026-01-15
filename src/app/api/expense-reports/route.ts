@@ -3,7 +3,8 @@ import {
     getAllExpenseReports,
     getExpenseReportById,
     getExpensesForReport,
-    deleteExpenseReport
+    deleteExpenseReport,
+    getExpenseStatistics
 } from "@/lib/expenses/expense-db-service";
 
 export async function GET(req: NextRequest) {
@@ -11,7 +12,14 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const reportId = searchParams.get("id");
         const includeExpenses = searchParams.get("includeExpenses") === "true";
+        const includeStatistics = searchParams.get("includeStatistics") === "true";
         const limit = parseInt(searchParams.get("limit") || "50");
+
+        // Get statistics
+        if (includeStatistics) {
+            const statistics = getExpenseStatistics();
+            return NextResponse.json({ success: true, statistics });
+        }
 
         if (reportId) {
             // Get specific report

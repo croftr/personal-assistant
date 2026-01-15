@@ -324,3 +324,87 @@ export function deleteExpenseReportOnly(reportId: number): void {
     `);
     stmt.run(reportId);
 }
+
+/**
+ * Get comprehensive expense statistics including category breakdown
+ */
+export function getExpenseStatistics(): {
+    total_reports: number;
+    total_expenses: number;
+    total_amount: number;
+    categories: {
+        meals: { count: number; amount: number };
+        travel: { count: number; amount: number };
+        accommodation: { count: number; amount: number };
+        other: { count: number; amount: number };
+    };
+} {
+    const db = getDatabase();
+
+    // Get total reports count
+    const reportStats = db.prepare(`
+        SELECT COUNT(*) as total_reports
+        FROM expense_reports
+    `).get() as { total_reports: number };
+
+    // Get total expenses linked to reports
+    const expenseStats = db.prepare(`
+        SELECT
+            COUNT(DISTINCT e.id) as total_expenses,
+            COALESCE(SUM(e.amount), 0) as total_amount
+        FROM expenses e
+        INNER JOIN report_expenses re ON e.id = re.expense_id
+    `).get() as { total_expenses: number; total_amount: number };
+
+    // Get category breakdown - categorize by keywords in description
+    const categoryStats = db.prepare(`
+        SELECT
+            e.description,
+            e.amount
+        FROM expenses e
+        INNER JOIN report_expenses re ON e.id = re.expense_id
+    `).all() as { description: string; amount: number }[];
+
+    // Categorize expenses based on keywords
+    const categories = {
+        meals: { count: 0, amount: 0 },
+        travel: { count: 0, amount: 0 },
+        accommodation: { count: 0, amount: 0 },
+        other: { count: 0, amount: 0 }
+    };
+
+    const mealsKeywords = ['meal', 'meals', 'food', 'restaurant', 'lunch', 'dinner', 'breakfast', 'cafe', 'coffee', 'dining', 'eat', 'nando', "nando's", 'mcdonald', 'kfc', 'subway', 'greggs', 'pret', 'starbucks', 'costa'];
+    const travelKeywords = ['travel', 'train', 'bus', 'taxi', 'uber', 'flight', 'transport', 'fare', 'parking', 'fuel', 'petrol', 'gas', 'underground', 'trainline', 'lyft', 'bolt', 'lime', 'rail'];
+    const accommodationKeywords = ['hotel', 'hotels', 'accommodation', 'lodging', 'stay', 'hostel', 'airbnb', 'room', 'premier inn', 'travelodge', 'holiday inn', 'marriott', 'hilton'];
+
+    for (const expense of categoryStats) {
+        const desc = expense.description.toLowerCase();
+        let categorized = false;
+
+        if (mealsKeywords.some(keyword => desc.includes(keyword))) {
+            categories.meals.count++;
+            categories.meals.amount += expense.amount;
+            categorized = true;
+        } else if (travelKeywords.some(keyword => desc.includes(keyword))) {
+            categories.travel.count++;
+            categories.travel.amount += expense.amount;
+            categorized = true;
+        } else if (accommodationKeywords.some(keyword => desc.includes(keyword))) {
+            categories.accommodation.count++;
+            categories.accommodation.amount += expense.amount;
+            categorized = true;
+        }
+
+        if (!categorized) {
+            categories.other.count++;
+            categories.other.amount += expense.amount;
+        }
+    }
+
+    return {
+        total_reports: reportStats.total_reports,
+        total_expenses: expenseStats.total_expenses,
+        total_amount: expenseStats.total_amount,
+        categories
+    };
+}
