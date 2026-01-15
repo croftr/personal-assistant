@@ -141,6 +141,20 @@ function initializeSchema(db: Database.Database) {
         );
     `);
 
+    // Bank accounts table - stores bank account details
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS bank_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            bank TEXT NOT NULL,
+            interest_rate REAL,
+            amount REAL NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `);
+
     // Create indexes for better query performance
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_documents_assistant_type ON documents(assistant_type);
@@ -152,6 +166,8 @@ function initializeSchema(db: Database.Database) {
         CREATE INDEX IF NOT EXISTS idx_pensions_name ON pensions(name);
         CREATE INDEX IF NOT EXISTS idx_payslips_pay_date ON payslips(pay_date);
         CREATE INDEX IF NOT EXISTS idx_payslips_created_at ON payslips(created_at);
+        CREATE INDEX IF NOT EXISTS idx_bank_accounts_name ON bank_accounts(name);
+        CREATE INDEX IF NOT EXISTS idx_bank_accounts_bank ON bank_accounts(bank);
     `);
 
     console.log("Database schema initialized at:", DB_PATH);

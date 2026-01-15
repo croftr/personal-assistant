@@ -63,3 +63,23 @@ export interface ProcessedPayslip {
     pensionContribution?: number;
     otherDeductions?: number;
 }
+
+// Bank Account types
+export interface BankAccount {
+    id: number;
+    name: string;
+    bank: string;
+    interest_rate: number | null;
+    amount: number;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface BankAccountInput {
+    name: string;
+    bank: string;
+    interest_rate?: number;
+    amount: number;
+    notes?: string;
+}

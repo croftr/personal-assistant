@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Calculator, FileText, Mail, Upload, Download, Plus, ExternalLink, Trash2, Edit2, ChevronDown, ChevronUp } from "lucide-react";
-import type { Pension, Payslip, ProcessedPayslip } from "@/types/accountant";
+import { Calculator, FileText, Mail, Upload, Download, Plus, ExternalLink, Trash2, Edit2, ChevronDown, ChevronUp, Landmark } from "lucide-react";
+import type { Pension, Payslip, ProcessedPayslip, BankAccount } from "@/types/accountant";
 import toast, { Toaster } from "react-hot-toast";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { groupByFinancialYear, formatFinancialYear } from "@/lib/utils/financial-year";
@@ -10,14 +10,25 @@ import { groupByFinancialYear, formatFinancialYear } from "@/lib/utils/financial
 export default function AccountantPage() {
   const [pensions, setPensions] = useState<Pension[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [payslipsLoading, setPayslipsLoading] = useState(true);
+  const [bankAccountsLoading, setBankAccountsLoading] = useState(true);
   const [uploadingPayslips, setUploadingPayslips] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showBankForm, setShowBankForm] = useState(false);
   const [editingPension, setEditingPension] = useState<Pension | null>(null);
+  const [editingBankAccount, setEditingBankAccount] = useState<BankAccount | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     url: "",
+    amount: "",
+    notes: ""
+  });
+  const [bankFormData, setBankFormData] = useState({
+    name: "",
+    bank: "",
+    interest_rate: "",
     amount: "",
     notes: ""
   });
@@ -88,10 +99,11 @@ export default function AccountantPage() {
     });
   };
 
-  // Fetch pensions on mount
+  // Fetch data on mount
   useEffect(() => {
     fetchPensions();
     fetchPayslips();
+    fetchBankAccounts();
   }, []);
 
   const fetchPensions = async () => {
@@ -329,7 +341,103 @@ export default function AccountantPage() {
     });
   };
 
+  const fetchBankAccounts = async () => {
+    try {
+      setBankAccountsLoading(true);
+      const response = await fetch("/api/bank-accounts");
+      const data = await response.json();
+      if (data.success) {
+        setBankAccounts(data.accounts);
+      }
+    } catch (error) {
+      console.error("Failed to fetch bank accounts:", error);
+    } finally {
+      setBankAccountsLoading(false);
+    }
+  };
+
+  const handleBankSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const method = editingBankAccount ? "PUT" : "POST";
+
+      const body = editingBankAccount
+        ? { id: editingBankAccount.id, ...bankFormData, amount: parseFloat(bankFormData.amount), interest_rate: bankFormData.interest_rate ? parseFloat(bankFormData.interest_rate) : undefined }
+        : { ...bankFormData, amount: parseFloat(bankFormData.amount), interest_rate: bankFormData.interest_rate ? parseFloat(bankFormData.interest_rate) : undefined };
+
+      const response = await fetch("/api/bank-accounts", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        await fetchBankAccounts();
+        setShowBankForm(false);
+        setEditingBankAccount(null);
+        setBankFormData({ name: "", bank: "", interest_rate: "", amount: "", notes: "" });
+        toast.success(editingBankAccount ? "Bank account updated successfully" : "Bank account added successfully");
+      } else {
+        toast.error(data.error || "Failed to save bank account");
+      }
+    } catch (error) {
+      console.error("Failed to save bank account:", error);
+      toast.error("Failed to save bank account");
+    }
+  };
+
+  const handleDeleteBankAccount = async (id: number) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Bank Account",
+      message: "Are you sure you want to delete this bank account? This action cannot be undone.",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        try {
+          const response = await fetch(`/api/bank-accounts?id=${id}`, {
+            method: "DELETE"
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            await fetchBankAccounts();
+            toast.success("Bank account deleted successfully");
+          } else {
+            toast.error(data.error || "Failed to delete bank account");
+          }
+        } catch (error) {
+          console.error("Failed to delete bank account:", error);
+          toast.error("Failed to delete bank account");
+        }
+      }
+    });
+  };
+
+  const handleEditBankAccount = (account: BankAccount) => {
+    setEditingBankAccount(account);
+    setBankFormData({
+      name: account.name,
+      bank: account.bank,
+      interest_rate: account.interest_rate?.toString() || "",
+      amount: account.amount.toString(),
+      notes: account.notes || ""
+    });
+    setShowBankForm(true);
+  };
+
+  const handleCancelBank = () => {
+    setShowBankForm(false);
+    setEditingBankAccount(null);
+    setBankFormData({ name: "", bank: "", interest_rate: "", amount: "", notes: "" });
+  };
+
   const totalAmount = pensions.reduce((sum, p) => sum + p.amount, 0);
+  const totalBankBalance = bankAccounts.reduce((sum, a) => sum + a.amount, 0);
 
   return (
     <>
@@ -374,6 +482,88 @@ export default function AccountantPage() {
             Accountant Assistant
           </h1>
           <p className="text-gray-400">Financial analysis and reporting tools</p>
+        </div>
+
+        {/* Grand Totals Overview */}
+        <div className="glass rounded-lg p-6 bg-gradient-to-br from-purple-600/20 via-blue-600/20 to-green-600/20 border-2 border-purple-500/30">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+            <Calculator className="text-purple-400" size={28} />
+            Financial Overview
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Pensions Summary */}
+            <div className="glass rounded-lg p-4 bg-purple-600/10">
+              <h3 className="text-lg font-semibold mb-3 text-purple-400">Pensions</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-400">Total Value</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    £{totalAmount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <p className="text-sm text-gray-400">
+                  {pensions.length} pension{pensions.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Payslips Summary */}
+            <div className="glass rounded-lg p-4 bg-blue-600/10">
+              <h3 className="text-lg font-semibold mb-3 text-blue-400">Payslips (All Years)</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-400">Total Net Pay</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    £{grandTotals.netPay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-gray-500">Tax Paid</p>
+                    <p className="font-semibold text-red-400">
+                      £{grandTotals.taxPaid.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Pension</p>
+                    <p className="font-semibold text-purple-400">
+                      £{grandTotals.pensionContribution.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-400">
+                  {grandTotals.count} payslip{grandTotals.count !== 1 ? 's' : ''} • {financialYears.length} year{financialYears.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Bank Accounts Summary */}
+            <div className="glass rounded-lg p-4 bg-green-600/10">
+              <h3 className="text-lg font-semibold mb-3 text-green-400">Bank Accounts</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-400">Total Savings</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    £{totalBankBalance.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <p className="text-sm text-gray-400">
+                  {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Combined Total */}
+          <div className="mt-6 pt-6 border-t border-gray-600/50">
+            <div className="flex justify-between items-center">
+              <span className="text-xl font-semibold text-gray-300">Combined Total Assets</span>
+              <span className="text-4xl font-bold text-green-400">
+                £{(totalAmount + grandTotals.netPay + totalBankBalance).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Pensions Section */}
@@ -554,47 +744,6 @@ export default function AccountantPage() {
             </label>
           </div>
 
-          {/* Grand Total Summary - Most Important */}
-          {!payslipsLoading && payslips.length > 0 && (
-            <div className="glass rounded-lg p-6 bg-gradient-to-br from-green-600/20 to-blue-600/20 border-2 border-green-500/30">
-              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Calculator className="text-green-400" size={24} />
-                Grand Total (All Years)
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-gray-300">Total Net Pay</p>
-                  <p className="text-2xl font-bold text-green-400">
-                    £{grandTotals.netPay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-300">Total Tax Paid</p>
-                  <p className="text-2xl font-bold text-red-400">
-                    £{grandTotals.taxPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-300">Total NI Paid</p>
-                  <p className="text-2xl font-bold text-red-400">
-                    £{grandTotals.niPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-300">Total Pension</p>
-                  <p className="text-2xl font-bold text-purple-400">
-                    £{grandTotals.pensionContribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-600/50">
-                <p className="text-sm text-gray-300">
-                  {grandTotals.count} payslip{grandTotals.count !== 1 ? 's' : ''} across {financialYears.length} financial year{financialYears.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Payslips by Financial Year */}
           {payslipsLoading ? (
             <div className="text-center py-8 text-gray-400">Loading payslips...</div>
@@ -727,6 +876,230 @@ export default function AccountantPage() {
                 );
               })}
             </div>
+          )}
+
+          {/* Grand Total Summary */}
+          {!payslipsLoading && payslips.length > 0 && (
+            <div className="glass rounded-lg p-6 bg-gradient-to-br from-green-600/20 to-blue-600/20 border-2 border-green-500/30">
+              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <Calculator className="text-green-400" size={24} />
+                Grand Total (All Years)
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-gray-300">Total Net Pay</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    £{grandTotals.netPay.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total Tax Paid</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    £{grandTotals.taxPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total NI Paid</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    £{grandTotals.niPaid.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-300">Total Pension</p>
+                  <p className="text-2xl font-bold text-purple-400">
+                    £{grandTotals.pensionContribution.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-600/50">
+                <p className="text-sm text-gray-300">
+                  {grandTotals.count} payslip{grandTotals.count !== 1 ? 's' : ''} across {financialYears.length} financial year{financialYears.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bank Accounts Section */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold">Bank Accounts</h2>
+            <button
+              onClick={() => setShowBankForm(!showBankForm)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              <Plus size={20} />
+              Add Bank Account
+            </button>
+          </div>
+
+          {/* Add/Edit Form */}
+          {showBankForm && (
+            <form onSubmit={handleBankSubmit} className="glass rounded-lg p-6 space-y-4">
+              <h3 className="text-xl font-semibold">
+                {editingBankAccount ? "Edit Bank Account" : "Add New Bank Account"}
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Account Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bankFormData.name}
+                    onChange={(e) => setBankFormData({ ...bankFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Main Savings"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Bank *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bankFormData.bank}
+                    onChange={(e) => setBankFormData({ ...bankFormData, bank: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Barclays"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Balance (£) *</label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    value={bankFormData.amount}
+                    onChange={(e) => setBankFormData({ ...bankFormData, amount: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Interest Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bankFormData.interest_rate}
+                    onChange={(e) => setBankFormData({ ...bankFormData, interest_rate: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes</label>
+                <textarea
+                  value={bankFormData.notes}
+                  onChange={(e) => setBankFormData({ ...bankFormData, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Additional information..."
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  {editingBankAccount ? "Update Account" : "Add Account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelBank}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Bank Accounts List */}
+          {bankAccountsLoading ? (
+            <div className="text-center py-8 text-gray-400">Loading bank accounts...</div>
+          ) : bankAccounts.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              No bank accounts added yet. Click "Add Bank Account" to get started.
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {bankAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="glass rounded-lg p-4 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Landmark size={20} className="text-blue-400" />
+                          <div>
+                            <h3 className="text-lg font-semibold">{account.name}</h3>
+                            <p className="text-sm text-gray-400">{account.bank}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-gray-400">Balance</p>
+                            <p className="text-2xl font-bold text-green-400">
+                              £{account.amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          {account.interest_rate && (
+                            <div>
+                              <p className="text-xs text-gray-400">Interest Rate</p>
+                              <p className="text-xl font-semibold text-blue-400">
+                                {account.interest_rate}%
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {account.notes && (
+                          <p className="text-sm text-gray-400 mt-3">{account.notes}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditBankAccount(account)}
+                          className="p-2 hover:bg-blue-600/20 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBankAccount(account.id)}
+                          className="p-2 hover:bg-red-600/20 rounded-lg transition-colors text-red-400"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Balance */}
+              <div className="glass rounded-lg p-4 bg-blue-600/10">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold">Total Balance</span>
+                  <span className="text-3xl font-bold text-green-400">
+                    £{totalBankBalance.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 mt-1">
+                  {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </>
           )}
         </div>
       </div>
