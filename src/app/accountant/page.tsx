@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Trash2,
   Edit2,
-  X
+  X,
+  Volume2
 } from "lucide-react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
 import toast, { Toaster } from "react-hot-toast";
@@ -37,8 +38,10 @@ export default function AccountantPage() {
     summary: string;
     recommendations: string[];
   } | null>(null);
+  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState<"pensions" | "banks" | "payslips" | null>(null);
+  const [welcomeFetched, setWelcomeFetched] = useState(false);
 
   const generateSummary = async () => {
     try {
@@ -57,6 +60,58 @@ export default function AccountantPage() {
       toast.error("Failed to analyze data");
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const generateWelcome = () => {
+    if (welcomeFetched) return;
+
+    const allUpdates = [
+      ...pensions.map(p => ({ category: "retirement details", date: new Date(p.updated_at) })),
+      ...payslips.map(p => ({ category: "payslips", date: new Date(p.updated_at) })),
+      ...bankAccounts.map(b => ({ category: "bank accounts", date: new Date(b.updated_at) }))
+    ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    setWelcomeFetched(true);
+
+    if (allUpdates.length === 0) {
+      const msg = "Welcome Rob! Connect some data nodes to begin your financial analysis.";
+      setWelcomeMessage(msg);
+      speak(msg);
+      return;
+    }
+
+    const latest = allUpdates[0];
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - latest.date.getTime()) / (1000 * 60 * 60 * 24));
+
+    let timeStr = "recently";
+    if (diffDays === 0) timeStr = "today";
+    else if (diffDays === 1) timeStr = "yesterday";
+    else if (diffDays < 7) timeStr = `${diffDays} days ago`;
+    else if (diffDays < 14) timeStr = "last week";
+    else if (diffDays < 31) timeStr = "this month";
+    else timeStr = "a while ago";
+
+    const msg = `Welcome Rob, you last updated your ${latest.category} ${timeStr}. Do you want to know anything about your finances?`;
+    setWelcomeMessage(msg);
+    speak(msg);
+  };
+
+  useEffect(() => {
+    if (!loading && !welcomeFetched && (pensions.length > 0 || payslips.length > 0 || bankAccounts.length > 0)) {
+      generateWelcome();
+    }
+  }, [loading, pensions, payslips, bankAccounts, welcomeFetched]);
+
+  const speak = (text: string) => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95; // Slightly slower for a more premium feel
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -102,6 +157,24 @@ export default function AccountantPage() {
           FINANCIAL ENGINE
         </h1>
         <p className="text-slate-400 mt-2 font-light tracking-widest uppercase text-[10px]">Autonomous Intelligence • Real-time Analysis</p>
+
+        {welcomeMessage && (
+          <div className="mt-8 max-w-2xl mx-auto relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+            <div className="relative glass p-6 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-top-4 duration-1000 flex items-center gap-4">
+              <p className="text-sm font-light text-blue-100/80 leading-relaxed italic tracking-wide flex-1">
+                {welcomeMessage}
+              </p>
+              <button
+                onClick={() => speak(welcomeMessage)}
+                className="p-2 hover:bg-white/10 rounded-full text-blue-300/60 hover:text-blue-300 transition-colors"
+                title="Replay summary"
+              >
+                <Volume2 size={18} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Central Engine Visual */}
@@ -298,7 +371,7 @@ export default function AccountantPage() {
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-2xl ${activeTab === 'pensions' ? 'bg-purple-500/10 text-purple-400' :
-                    activeTab === 'banks' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-400'
+                  activeTab === 'banks' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-400'
                   }`}>
                   {activeTab === 'pensions' ? <ShieldCheck /> : activeTab === 'banks' ? <Landmark /> : <FileText />}
                 </div>
