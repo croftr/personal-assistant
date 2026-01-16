@@ -149,11 +149,24 @@ function initializeSchema(db: Database.Database) {
             bank TEXT NOT NULL,
             interest_rate REAL,
             amount REAL NOT NULL,
+            url TEXT,
             notes TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
     `);
+
+    // Add url column to existing bank_accounts table if it doesn't exist
+    try {
+        const columns = db.prepare("PRAGMA table_info(bank_accounts)").all() as any[];
+        const hasUrlColumn = columns.some(col => col.name === 'url');
+        if (!hasUrlColumn) {
+            db.exec(`ALTER TABLE bank_accounts ADD COLUMN url TEXT;`);
+            console.log("Added url column to bank_accounts table");
+        }
+    } catch (error) {
+        console.log("bank_accounts url column migration check:", error);
+    }
 
     // Create indexes for better query performance
     db.exec(`

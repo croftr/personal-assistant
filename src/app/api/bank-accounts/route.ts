@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { name, bank, interest_rate, amount, notes } = body;
+        const { name, bank, interest_rate, amount, url, notes } = body;
 
         if (!name || !bank || amount === undefined || amount === null) {
             return NextResponse.json(
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
             bank,
             interest_rate: interest_rate ? parseFloat(interest_rate) : undefined,
             amount: parseFloat(amount),
+            url,
             notes
         });
 
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         const body = await req.json();
-        const { id, name, bank, interest_rate, amount, notes } = body;
+        const { id, name, bank, interest_rate, amount, url, notes } = body;
 
         if (!id) {
             return NextResponse.json(
@@ -112,6 +113,7 @@ export async function PUT(req: NextRequest) {
         if (bank !== undefined) updates.bank = bank;
         if (interest_rate !== undefined) updates.interest_rate = parseFloat(interest_rate);
         if (amount !== undefined) updates.amount = parseFloat(amount);
+        if (url !== undefined) updates.url = url;
         if (notes !== undefined) updates.notes = notes;
 
         updateBankAccount(parseInt(id), updates);

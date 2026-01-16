@@ -6,6 +6,7 @@ export interface BankAccount {
     bank: string;
     interest_rate: number | null;
     amount: number;
+    url: string | null;
     notes: string | null;
     created_at: string;
     updated_at: string;
@@ -16,6 +17,7 @@ export interface BankAccountInput {
     bank: string;
     interest_rate?: number;
     amount: number;
+    url?: string;
     notes?: string;
 }
 
@@ -25,8 +27,8 @@ export interface BankAccountInput {
 export function createBankAccount(account: BankAccountInput): number {
     const db = getDatabase();
     const stmt = db.prepare(`
-        INSERT INTO bank_accounts (name, bank, interest_rate, amount, notes)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO bank_accounts (name, bank, interest_rate, amount, url, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -34,6 +36,7 @@ export function createBankAccount(account: BankAccountInput): number {
         account.bank,
         account.interest_rate || null,
         account.amount,
+        account.url || null,
         account.notes || null
     );
 

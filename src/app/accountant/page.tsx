@@ -16,7 +16,8 @@ import {
   Trash2,
   Edit2,
   X,
-  Volume2
+  Volume2,
+  ChevronDown
 } from "lucide-react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
 import toast, { Toaster } from "react-hot-toast";
@@ -42,6 +43,16 @@ export default function AccountantPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState<"pensions" | "banks" | "payslips" | null>(null);
   const [welcomeFetched, setWelcomeFetched] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
+  const [showPensionForm, setShowPensionForm] = useState(false);
+  const [showBankForm, setShowBankForm] = useState(false);
+  const [editingPensionId, setEditingPensionId] = useState<number | null>(null);
+  const [editingBankId, setEditingBankId] = useState<number | null>(null);
+  const [pensionForm, setPensionForm] = useState({ name: '', amount: '', url: '', notes: '' });
+  const [bankForm, setBankForm] = useState({ name: '', bank: '', amount: '', interest_rate: '', url: '', notes: '' });
 
   const generateSummary = async () => {
     try {
@@ -131,6 +142,261 @@ export default function AccountantPage() {
       toast.success("Account deleted");
       refreshBankAccounts();
     }
+  };
+
+  const deletePayslip = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this payslip?")) return;
+    const res = await fetch(`/api/payslips?id=${id}`, { method: "DELETE" });
+    if ((await res.json()).success) {
+      toast.success("Payslip deleted");
+      refreshPayslips();
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const pdfFiles = fileArray.filter(f => f.type === "application/pdf");
+
+    if (pdfFiles.length === 0) {
+      toast.error("Please select PDF files only");
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    pdfFiles.forEach(file => formData.append("files", file));
+
+    try {
+      const res = await fetch("/api/process-payslips", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (data.requiresConfirmation && data.duplicates) {
+        setPendingFiles(pdfFiles);
+        setDuplicateFiles(data.duplicates);
+        toast(data.message, { icon: "⚠️", duration: 5000 });
+      } else if (data.success) {
+        toast.success(`Successfully uploaded ${data.count} payslip(s)`);
+        refreshPayslips();
+      } else {
+        toast.error(data.error || "Upload failed");
+      }
+    } catch (error) {
+      toast.error("Failed to upload payslips");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const confirmReplace = async () => {
+    if (pendingFiles.length === 0) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    pendingFiles.forEach(file => formData.append("files", file));
+    formData.append("confirmReplace", "true");
+    formData.append("filesToReplace", JSON.stringify(duplicateFiles));
+
+    try {
+      const res = await fetch("/api/process-payslips", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(`Uploaded ${data.count} payslip(s), replaced ${data.replaced}`);
+        refreshPayslips();
+        setDuplicateFiles([]);
+        setPendingFiles([]);
+      } else {
+        toast.error(data.error || "Upload failed");
+      }
+    } catch (error) {
+      toast.error("Failed to upload payslips");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const cancelUpload = () => {
+    setDuplicateFiles([]);
+    setPendingFiles([]);
+  };
+
+  const toggleYearExpansion = (fyLabel: string) => {
+    setExpandedYears(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fyLabel)) {
+        newSet.delete(fyLabel);
+      } else {
+        newSet.add(fyLabel);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCreatePension = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pensionForm.name || !pensionForm.amount) {
+      toast.error("Name and amount are required");
+      return;
+    }
+
+    try {
+      const isEditing = editingPensionId !== null;
+      const method = isEditing ? "PUT" : "POST";
+
+      const res = await fetch("/api/pensions", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(isEditing && { id: editingPensionId }),
+          name: pensionForm.name,
+          amount: parseFloat(pensionForm.amount),
+          url: pensionForm.url || undefined,
+          notes: pensionForm.notes || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(isEditing ? "Pension updated successfully" : "Pension added successfully");
+        setPensionForm({ name: '', amount: '', url: '', notes: '' });
+        setShowPensionForm(false);
+        setEditingPensionId(null);
+        refreshPensions();
+      } else {
+        toast.error(data.error || `Failed to ${isEditing ? 'update' : 'add'} pension`);
+      }
+    } catch (error) {
+      toast.error(`Failed to ${editingPensionId ? 'update' : 'add'} pension`);
+    }
+  };
+
+  const handleCreateBankAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bankForm.name || !bankForm.bank || !bankForm.amount) {
+      toast.error("Name, bank, and amount are required");
+      return;
+    }
+
+    try {
+      const isEditing = editingBankId !== null;
+      const method = isEditing ? "PUT" : "POST";
+
+      const res = await fetch("/api/bank-accounts", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(isEditing && { id: editingBankId }),
+          name: bankForm.name,
+          bank: bankForm.bank,
+          amount: parseFloat(bankForm.amount),
+          interest_rate: bankForm.interest_rate ? parseFloat(bankForm.interest_rate) : undefined,
+          url: bankForm.url || undefined,
+          notes: bankForm.notes || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(isEditing ? "Bank account updated successfully" : "Bank account added successfully");
+        setBankForm({ name: '', bank: '', amount: '', interest_rate: '', url: '', notes: '' });
+        setShowBankForm(false);
+        setEditingBankId(null);
+        refreshBankAccounts();
+      } else {
+        toast.error(data.error || `Failed to ${isEditing ? 'update' : 'add'} account`);
+      }
+    } catch (error) {
+      toast.error(`Failed to ${editingBankId ? 'update' : 'add'} account`);
+    }
+  };
+
+  const startEditPension = (pension: any) => {
+    setPensionForm({
+      name: pension.name,
+      amount: pension.amount.toString(),
+      url: pension.url || '',
+      notes: pension.notes || ''
+    });
+    setEditingPensionId(pension.id);
+    setShowPensionForm(true);
+  };
+
+  const startEditBank = (bank: any) => {
+    setBankForm({
+      name: bank.name,
+      bank: bank.bank,
+      amount: bank.amount.toString(),
+      interest_rate: bank.interest_rate ? bank.interest_rate.toString() : '',
+      url: bank.url || '',
+      notes: bank.notes || ''
+    });
+    setEditingBankId(bank.id);
+    setShowBankForm(true);
+  };
+
+  // Group payslips by financial year (April to March)
+  const groupPayslipsByFinancialYear = () => {
+    const grouped: Record<string, typeof payslips> = {};
+
+    payslips.forEach(payslip => {
+      const date = new Date(payslip.pay_date);
+      const month = date.getMonth(); // 0-11
+      const year = date.getFullYear();
+
+      // Financial year starts in April (month 3)
+      const financialYear = month >= 3 ? year : year - 1;
+      const fyLabel = `${financialYear}/${(financialYear + 1).toString().slice(2)}`;
+
+      if (!grouped[fyLabel]) {
+        grouped[fyLabel] = [];
+      }
+      grouped[fyLabel].push(payslip);
+    });
+
+    // Sort by financial year (most recent first)
+    const sortedEntries = Object.entries(grouped).sort((a, b) => {
+      const yearA = parseInt(a[0].split('/')[0]);
+      const yearB = parseInt(b[0].split('/')[0]);
+      return yearB - yearA;
+    });
+
+    return sortedEntries;
+  };
+
+  // Calculate totals for a group of payslips
+  const calculateTotals = (payslips: any) => {
+    return payslips.reduce((acc: any, p: any) => ({
+      count: acc.count + 1,
+      grossPay: acc.grossPay + (p.gross_pay || 0),
+      netPay: acc.netPay + p.net_pay,
+      taxPaid: acc.taxPaid + (p.tax_paid || 0),
+      niPaid: acc.niPaid + (p.ni_paid || 0),
+      pension: acc.pension + (p.pension_contribution || 0),
+      other: acc.other + (p.other_deductions || 0)
+    }), {
+      count: 0,
+      grossPay: 0,
+      netPay: 0,
+      taxPaid: 0,
+      niPaid: 0,
+      pension: 0,
+      other: 0
+    });
+  };
+
+  // Format currency with 2 decimal places
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
@@ -367,7 +633,7 @@ export default function AccountantPage() {
       {/* Section Management Overlay */}
       {activeTab && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-[90] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="max-w-4xl w-full glass rounded-[40px] p-8 border border-white/10 shadow-2xl animate-in zoom-in duration-500 overflow-hidden flex flex-col max-h-[85vh]">
+          <div className={`${activeTab === 'payslips' ? 'max-w-7xl' : 'max-w-4xl'} w-full glass rounded-[40px] p-8 border border-white/10 shadow-2xl animate-in zoom-in duration-500 overflow-hidden flex flex-col max-h-[85vh]`}>
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-2xl ${activeTab === 'pensions' ? 'bg-purple-500/10 text-purple-400' :
@@ -382,66 +648,542 @@ export default function AccountantPage() {
 
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
               {activeTab === 'pensions' && (
-                <div className="grid gap-4">
-                  {pensions.map(p => (
-                    <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold">{p.name}</h4>
-                        <p className="text-xs text-slate-500">{p.notes || 'No description'}</p>
+                <>
+                  {/* Summary Card */}
+                  <div className="mb-6 p-5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-2xl border border-purple-500/30">
+                    <h3 className="text-lg font-bold text-purple-400 mb-3">Portfolio Summary</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                        <p className="text-[9px] text-purple-300 uppercase font-black tracking-wider mb-1">Total Portfolios</p>
+                        <p className="text-2xl font-bold text-purple-400">{pensions.length}</p>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <span className="text-xl font-bold text-purple-400">£{p.amount.toLocaleString()}</span>
-                        <button onClick={() => deletePension(p.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                        <p className="text-[9px] text-purple-300 uppercase font-black tracking-wider mb-1">Total Value</p>
+                        <p className="text-2xl font-bold text-purple-400">£{formatCurrency(totals.pensions)}</p>
                       </div>
                     </div>
-                  ))}
-                  {pensions.length === 0 && <p className="text-center py-12 text-slate-500 italic">No node data detected.</p>}
-                </div>
+                  </div>
+
+                  {/* Pension List */}
+                  <div className="grid gap-4">
+                    {pensions.map(p => (
+                      <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold">{p.name}</h4>
+                          <p className="text-xs text-slate-500">{p.notes || 'No description'}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xl font-bold text-purple-400">£{formatCurrency(p.amount)}</span>
+                          <button onClick={() => startEditPension(p)} className="text-slate-600 hover:text-purple-400 transition-colors"><Edit2 size={18} /></button>
+                          <button onClick={() => deletePension(p.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                        </div>
+                      </div>
+                    ))}
+                    {pensions.length === 0 && <p className="text-center py-12 text-slate-500 italic">No pensions added yet.</p>}
+                  </div>
+
+                  {/* Add Pension Form */}
+                  {!showPensionForm ? (
+                    <div className="mt-6 pt-6 border-t border-white/5">
+                      <button
+                        onClick={() => setShowPensionForm(true)}
+                        className="w-full p-4 glass rounded-2xl border border-dashed border-purple-500/30 hover:border-purple-500/60 hover:bg-purple-500/5 transition-all text-center"
+                      >
+                        <Plus className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-purple-400">Add New Pension</p>
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreatePension} className="mt-6 pt-6 border-t border-white/5">
+                      <div className="p-6 glass rounded-2xl border border-purple-500/30 space-y-4">
+                        <h3 className="text-lg font-bold text-purple-400 mb-4">
+                          {editingPensionId ? 'Edit Pension' : 'Add New Pension'}
+                        </h3>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Name *</label>
+                          <input
+                            type="text"
+                            value={pensionForm.name}
+                            onChange={(e) => setPensionForm({ ...pensionForm, name: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-purple-500/50 focus:outline-none"
+                            placeholder="e.g., Scottish Widows"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Amount *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={pensionForm.amount}
+                            onChange={(e) => setPensionForm({ ...pensionForm, amount: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-purple-500/50 focus:outline-none"
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Provider URL (optional)</label>
+                          <input
+                            type="url"
+                            value={pensionForm.url}
+                            onChange={(e) => setPensionForm({ ...pensionForm, url: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-purple-500/50 focus:outline-none"
+                            placeholder="https://..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Notes (optional)</label>
+                          <textarea
+                            value={pensionForm.notes}
+                            onChange={(e) => setPensionForm({ ...pensionForm, notes: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-purple-500/50 focus:outline-none"
+                            placeholder="Additional notes..."
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition-colors"
+                          >
+                            {editingPensionId ? 'Update Pension' : 'Add Pension'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowPensionForm(false);
+                              setPensionForm({ name: '', amount: '', url: '', notes: '' });
+                              setEditingPensionId(null);
+                            }}
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-medium rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+                </>
               )}
 
               {activeTab === 'banks' && (
-                <div className="grid gap-4">
-                  {bankAccounts.map(b => (
-                    <div key={b.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold">{b.name}</h4>
-                        <p className="text-xs text-slate-500">{b.bank} • {b.interest_rate}% APR</p>
+                <>
+                  {/* Summary Card */}
+                  <div className="mb-6 p-5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-2xl border border-blue-500/30">
+                    <h3 className="text-lg font-bold text-blue-400 mb-3">Liquidity Summary</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                        <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1">Total Accounts</p>
+                        <p className="text-2xl font-bold text-blue-400">{bankAccounts.length}</p>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <span className="text-xl font-bold text-blue-400">£{b.amount.toLocaleString()}</span>
-                        <button onClick={() => deleteBank(b.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                        <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1">Total Balance</p>
+                        <p className="text-2xl font-bold text-blue-400">£{formatCurrency(totals.banks)}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  {/* Bank Account List */}
+                  <div className="grid gap-4">
+                    {bankAccounts.map(b => (
+                      <div key={b.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold">{b.name}</h4>
+                          <p className="text-xs text-slate-500">{b.bank}{b.interest_rate ? ` • ${b.interest_rate}% APR` : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xl font-bold text-blue-400">£{formatCurrency(b.amount)}</span>
+                          <button onClick={() => startEditBank(b)} className="text-slate-600 hover:text-blue-400 transition-colors"><Edit2 size={18} /></button>
+                          <button onClick={() => deleteBank(b.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                        </div>
+                      </div>
+                    ))}
+                    {bankAccounts.length === 0 && <p className="text-center py-12 text-slate-500 italic">No bank accounts added yet.</p>}
+                  </div>
+
+                  {/* Add Bank Account Form */}
+                  {!showBankForm ? (
+                    <div className="mt-6 pt-6 border-t border-white/5">
+                      <button
+                        onClick={() => setShowBankForm(true)}
+                        className="w-full p-4 glass rounded-2xl border border-dashed border-blue-500/30 hover:border-blue-500/60 hover:bg-blue-500/5 transition-all text-center"
+                      >
+                        <Plus className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-blue-400">Add New Bank Account</p>
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreateBankAccount} className="mt-6 pt-6 border-t border-white/5">
+                      <div className="p-6 glass rounded-2xl border border-blue-500/30 space-y-4">
+                        <h3 className="text-lg font-bold text-blue-400 mb-4">
+                          {editingBankId ? 'Edit Bank Account' : 'Add New Bank Account'}
+                        </h3>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Account Name *</label>
+                          <input
+                            type="text"
+                            value={bankForm.name}
+                            onChange={(e) => setBankForm({ ...bankForm, name: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="e.g., Main Savings"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Bank *</label>
+                          <input
+                            type="text"
+                            value={bankForm.bank}
+                            onChange={(e) => setBankForm({ ...bankForm, bank: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="e.g., Barclays"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Balance *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={bankForm.amount}
+                            onChange={(e) => setBankForm({ ...bankForm, amount: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Interest Rate % (optional)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={bankForm.interest_rate}
+                            onChange={(e) => setBankForm({ ...bankForm, interest_rate: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="e.g., 4.5"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Bank URL (optional)</label>
+                          <input
+                            type="url"
+                            value={bankForm.url}
+                            onChange={(e) => setBankForm({ ...bankForm, url: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="https://..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Notes (optional)</label>
+                          <textarea
+                            value={bankForm.notes}
+                            onChange={(e) => setBankForm({ ...bankForm, notes: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:border-blue-500/50 focus:outline-none"
+                            placeholder="Additional notes..."
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-colors"
+                          >
+                            {editingBankId ? 'Update Account' : 'Add Account'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowBankForm(false);
+                              setBankForm({ name: '', bank: '', amount: '', interest_rate: '', url: '', notes: '' });
+                              setEditingBankId(null);
+                            }}
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-medium rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+                </>
               )}
 
               {activeTab === 'payslips' && (
-                <div className="grid gap-4">
-                  {payslips.map(p => (
-                    <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold">{new Date(p.pay_date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</h4>
-                        <p className="text-xs text-slate-500">{p.file_name}</p>
+                <>
+                  {payslips.length === 0 ? (
+                    <p className="text-center py-12 text-slate-500 italic">No payslips uploaded yet.</p>
+                  ) : (
+                    <>
+                      {/* Grand Total */}
+                      {(() => {
+                        const grandTotal = calculateTotals(payslips);
+                        return (
+                          <div className="mb-6 p-5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl border border-green-500/30">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-xl font-bold text-green-400">Grand Total</h3>
+                                <p className="text-xs text-slate-400">{grandTotal.count} payslip{grandTotal.count !== 1 ? 's' : ''} • All years</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                              {grandTotal.grossPay > 0 && (
+                                <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                  <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Gross</p>
+                                  <p className="text-sm lg:text-base font-bold text-blue-400 whitespace-nowrap">£{formatCurrency(grandTotal.grossPay)}</p>
+                                </div>
+                              )}
+                              <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30">
+                                <p className="text-[9px] text-green-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Net</p>
+                                <p className="text-sm lg:text-base font-bold text-green-400 whitespace-nowrap">£{formatCurrency(grandTotal.netPay)}</p>
+                              </div>
+                              {grandTotal.taxPaid > 0 && (
+                                <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+                                  <p className="text-[9px] text-red-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Tax</p>
+                                  <p className="text-sm lg:text-base font-bold text-red-400 whitespace-nowrap">£{formatCurrency(grandTotal.taxPaid)}</p>
+                                </div>
+                              )}
+                              {grandTotal.niPaid > 0 && (
+                                <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                                  <p className="text-[9px] text-orange-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">NI</p>
+                                  <p className="text-sm lg:text-base font-bold text-orange-400 whitespace-nowrap">£{formatCurrency(grandTotal.niPaid)}</p>
+                                </div>
+                              )}
+                              {grandTotal.pension > 0 && (
+                                <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                                  <p className="text-[9px] text-purple-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Pension</p>
+                                  <p className="text-sm lg:text-base font-bold text-purple-400 whitespace-nowrap">£{formatCurrency(grandTotal.pension)}</p>
+                                </div>
+                              )}
+                              {grandTotal.other > 0 && (
+                                <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+                                  <p className="text-[9px] text-yellow-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Other</p>
+                                  <p className="text-sm lg:text-base font-bold text-yellow-400 whitespace-nowrap">£{formatCurrency(grandTotal.other)}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Financial Year Groups */}
+                      <div className="space-y-6">
+                        {groupPayslipsByFinancialYear().map(([fyLabel, fyPayslips]) => {
+                          const fyTotals = calculateTotals(fyPayslips);
+                          const isExpanded = expandedYears.has(fyLabel);
+                          return (
+                            <div key={fyLabel} className="space-y-3">
+                              {/* Financial Year Header with Totals */}
+                              <div
+                                className="p-4 bg-white/[0.02] rounded-xl border border-white/10 cursor-pointer hover:bg-white/[0.04] transition-colors"
+                                onClick={() => toggleYearExpansion(fyLabel)}
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <ChevronDown
+                                      size={20}
+                                      className={`text-green-400 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                                    />
+                                    <div>
+                                      <h3 className="text-lg font-bold text-green-400">FY {fyLabel}</h3>
+                                      <p className="text-xs text-slate-500">{fyTotals.count} payslip{fyTotals.count !== 1 ? 's' : ''}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                                  {fyTotals.grossPay > 0 && (
+                                    <div className="p-2 bg-blue-500/5 rounded-lg border border-blue-500/10">
+                                      <p className="text-[8px] text-blue-400 uppercase font-black tracking-wider mb-0.5">Gross</p>
+                                      <p className="text-xs font-bold text-blue-400 whitespace-nowrap">£{formatCurrency(fyTotals.grossPay)}</p>
+                                    </div>
+                                  )}
+                                  <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                                    <p className="text-[8px] text-green-400 uppercase font-black tracking-wider mb-0.5">Net</p>
+                                    <p className="text-xs font-bold text-green-400 whitespace-nowrap">£{formatCurrency(fyTotals.netPay)}</p>
+                                  </div>
+                                  {fyTotals.taxPaid > 0 && (
+                                    <div className="p-2 bg-red-500/5 rounded-lg border border-red-500/10">
+                                      <p className="text-[8px] text-red-400 uppercase font-black tracking-wider mb-0.5">Tax</p>
+                                      <p className="text-xs font-bold text-red-400 whitespace-nowrap">£{formatCurrency(fyTotals.taxPaid)}</p>
+                                    </div>
+                                  )}
+                                  {fyTotals.niPaid > 0 && (
+                                    <div className="p-2 bg-orange-500/5 rounded-lg border border-orange-500/10">
+                                      <p className="text-[8px] text-orange-400 uppercase font-black tracking-wider mb-0.5">NI</p>
+                                      <p className="text-xs font-bold text-orange-400 whitespace-nowrap">£{formatCurrency(fyTotals.niPaid)}</p>
+                                    </div>
+                                  )}
+                                  {fyTotals.pension > 0 && (
+                                    <div className="p-2 bg-purple-500/5 rounded-lg border border-purple-500/10">
+                                      <p className="text-[8px] text-purple-400 uppercase font-black tracking-wider mb-0.5">Pension</p>
+                                      <p className="text-xs font-bold text-purple-400 whitespace-nowrap">£{formatCurrency(fyTotals.pension)}</p>
+                                    </div>
+                                  )}
+                                  {fyTotals.other > 0 && (
+                                    <div className="p-2 bg-yellow-500/5 rounded-lg border border-yellow-500/10">
+                                      <p className="text-[8px] text-yellow-400 uppercase font-black tracking-wider mb-0.5">Other</p>
+                                      <p className="text-xs font-bold text-yellow-400 whitespace-nowrap">£{formatCurrency(fyTotals.other)}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Payslips for this year - collapsible */}
+                              {isExpanded && (
+                                <div className="grid gap-3 pl-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                  {fyPayslips.map(p => (
+                                  <div key={p.id} className="p-4 glass rounded-xl border border-white/5 hover:border-green-500/20 transition-colors">
+                                    {/* Header with date and file name */}
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-sm sm:text-base">{new Date(p.pay_date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</h4>
+                                        <p className="text-xs text-slate-500 truncate">{p.file_name}</p>
+                                      </div>
+                                      <button onClick={() => deletePayslip(p.id)} className="self-end sm:self-auto text-slate-600 hover:text-red-400 transition-colors flex-shrink-0"><Trash2 size={16} /></button>
+                                    </div>
+
+                                    {/* Financial breakdown - responsive grid */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 border-t border-white/5">
+                                      {/* Gross Pay */}
+                                      {p.gross_pay !== null && (
+                                        <div className="p-2 bg-blue-500/5 rounded-lg border border-blue-500/10 flex flex-col">
+                                          <p className="text-[8px] text-blue-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">Gross</p>
+                                          <p className="text-xs font-bold text-blue-400 whitespace-nowrap">£{formatCurrency(p.gross_pay)}</p>
+                                        </div>
+                                      )}
+
+                                      {/* Net Pay */}
+                                      <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20 flex flex-col">
+                                        <p className="text-[8px] text-green-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">Net</p>
+                                        <p className="text-xs font-bold text-green-400 whitespace-nowrap">£{formatCurrency(p.net_pay)}</p>
+                                      </div>
+
+                                      {/* Tax Paid */}
+                                      {p.tax_paid !== null && (
+                                        <div className="p-2 bg-red-500/5 rounded-lg border border-red-500/10 flex flex-col">
+                                          <p className="text-[8px] text-red-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">Tax</p>
+                                          <p className="text-xs font-bold text-red-400 whitespace-nowrap">£{formatCurrency(p.tax_paid)}</p>
+                                        </div>
+                                      )}
+
+                                      {/* NI Paid */}
+                                      {p.ni_paid !== null && (
+                                        <div className="p-2 bg-orange-500/5 rounded-lg border border-orange-500/10 flex flex-col">
+                                          <p className="text-[8px] text-orange-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">NI</p>
+                                          <p className="text-xs font-bold text-orange-400 whitespace-nowrap">£{formatCurrency(p.ni_paid)}</p>
+                                        </div>
+                                      )}
+
+                                      {/* Pension Contribution */}
+                                      {p.pension_contribution !== null && (
+                                        <div className="p-2 bg-purple-500/5 rounded-lg border border-purple-500/10 flex flex-col">
+                                          <p className="text-[8px] text-purple-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">Pension</p>
+                                          <p className="text-xs font-bold text-purple-400 whitespace-nowrap">£{formatCurrency(p.pension_contribution)}</p>
+                                        </div>
+                                      )}
+
+                                      {/* Other Deductions */}
+                                      {p.other_deductions !== null && p.other_deductions > 0 && (
+                                        <div className="p-2 bg-yellow-500/5 rounded-lg border border-yellow-500/10 flex flex-col">
+                                          <p className="text-[8px] text-yellow-400 uppercase font-black tracking-wider mb-0.5 whitespace-nowrap">Other</p>
+                                          <p className="text-xs font-bold text-yellow-400 whitespace-nowrap">£{formatCurrency(p.other_deductions)}</p>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Notes if available */}
+                                    {p.notes && (
+                                      <div className="mt-2 pt-2 border-t border-white/5">
+                                        <p className="text-xs text-slate-400 italic">{p.notes}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <span className="text-xl font-bold text-green-400">£{p.net_pay.toLocaleString()}</span>
-                          <p className="text-[9px] text-slate-500 uppercase font-black">Net Pay</p>
+                    </>
+                  )}
+
+                  {/* Upload Section */}
+                  <div className="mt-6 pt-6 border-t border-white/5">
+                    <label className="block">
+                      <input
+                        type="file"
+                        multiple
+                        accept="application/pdf"
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        disabled={uploading}
+                        className="hidden"
+                        id="payslip-upload"
+                      />
+                      <div className="p-6 glass rounded-2xl border border-dashed border-green-500/30 hover:border-green-500/60 hover:bg-green-500/5 transition-all cursor-pointer text-center">
+                        <Upload className="w-8 h-8 text-green-400 mx-auto mb-3" />
+                        <p className="text-sm font-medium text-green-400 mb-1">
+                          {uploading ? "Processing payslips..." : "Upload Payslips"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Click to select PDF files or drag and drop
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Duplicate Confirmation Dialog */}
+                  {duplicateFiles.length > 0 && (
+                    <div className="mt-4 p-5 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl">
+                      <div className="flex items-start gap-3 mb-4">
+                        <div className="text-yellow-400 mt-0.5">⚠️</div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-yellow-400 mb-2">Duplicate Files Detected</h4>
+                          <p className="text-sm text-slate-300 mb-3">
+                            The following payslips already exist. Do you want to replace them?
+                          </p>
+                          <ul className="text-xs text-slate-400 space-y-1 mb-4">
+                            {duplicateFiles.map((file, i) => (
+                              <li key={i} className="font-mono">• {file}</li>
+                            ))}
+                          </ul>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={confirmReplace}
+                              disabled={uploading}
+                              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-lg text-sm transition-colors disabled:opacity-50"
+                            >
+                              Replace Existing
+                            </button>
+                            <button
+                              onClick={cancelUpload}
+                              disabled={uploading}
+                              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 font-medium rounded-lg text-sm transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <button className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
 
-            <div className="mt-8 pt-8 border-t border-white/5 flex justify-center">
-              <button className="px-12 py-4 bg-white/[0.02] border border-white/10 hover:bg-white/[0.05] rounded-2xl font-bold tracking-widest text-[10px] uppercase transition-all">
-                Synchronize New Data Source
-              </button>
-            </div>
+
           </div>
         </div>
       )}
