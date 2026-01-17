@@ -98,3 +98,19 @@ body {
   stroke-dasharray: 20;
   animation: data-flow 3s linear infinite;
 }
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

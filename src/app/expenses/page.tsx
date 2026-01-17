@@ -574,7 +574,11 @@ export default function ExpensesPage() {
   };
 
   return (
-    <main className="min-h-screen gradient-bg flex flex-col items-center p-8 text-white">
+    <main className="min-h-screen gradient-bg flex flex-col items-center p-8 text-white relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px] -z-10" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] -z-10" />
+
       <Toaster
         position="top-right"
         toastOptions={{
@@ -597,16 +601,19 @@ export default function ExpensesPage() {
           },
         }}
       />
-      <div className="max-w-7xl w-full glass rounded-3xl p-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+      <div className="max-w-7xl w-full glass rounded-3xl p-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700 z-10">
 
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-6">
           <div className="flex justify-center mb-2">
-            <img src="/logo.svg" alt="Logo" className="w-20 h-20 animate-float" />
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <img src="/logo.svg" alt="Logo" className="relative w-24 h-24 animate-float" />
+            </div>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+          <h1 className="text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500">
             Expense Processor
           </h1>
-          <p className="text-gray-400">Process receipts and generate expense reports (GBP)</p>
+          <p className="text-xl text-gray-300">Automated Receipt Management & Analysis</p>
         </div>
 
         <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-6">
