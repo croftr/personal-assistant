@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import type { Pension, BankAccount } from "@/types/accountant";
+import type { Pension, BankAccount, TaxReturn } from "@/types/accountant";
 
 export interface FinancialYearSummary {
     id: number;
@@ -17,26 +17,30 @@ export function useAccountantData() {
     const [pensions, setPensions] = useState<Pension[]>([]);
     const [financialYears, setFinancialYears] = useState<FinancialYearSummary[]>([]);
     const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+    const [taxReturns, setTaxReturns] = useState<TaxReturn[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [pRes, fyRes, bRes] = await Promise.all([
+                const [pRes, fyRes, bRes, trRes] = await Promise.all([
                     fetch("/api/pensions"),
                     fetch("/api/financial-years"),
-                    fetch("/api/bank-accounts")
+                    fetch("/api/bank-accounts"),
+                    fetch("/api/tax-returns")
                 ]);
 
-                const [pData, fyData, bData] = await Promise.all([
+                const [pData, fyData, bData, trData] = await Promise.all([
                     pRes.json(),
                     fyRes.json(),
-                    bRes.json()
+                    bRes.json(),
+                    trRes.json()
                 ]);
 
                 if (pData.success) setPensions(pData.pensions);
                 if (fyData.success) setFinancialYears(fyData.summaries);
                 if (bData.success) setBankAccounts(bData.accounts);
+                if (trData.success) setTaxReturns(trData.taxReturns);
             } catch (error) {
                 console.error("Failed to fetch accountant data:", error);
             } finally {
@@ -65,6 +69,7 @@ export function useAccountantData() {
         pensions,
         financialYears,
         bankAccounts,
+        taxReturns,
         loading,
         totals,
         refreshPensions: async () => {
@@ -81,6 +86,11 @@ export function useAccountantData() {
             const res = await fetch("/api/bank-accounts");
             const data = await res.json();
             if (data.success) setBankAccounts(data.accounts);
+        },
+        refreshTaxReturns: async () => {
+            const res = await fetch("/api/tax-returns");
+            const data = await res.json();
+            if (data.success) setTaxReturns(data.taxReturns);
         }
     };
 }

@@ -171,6 +171,24 @@ function initializeSchema(db: Database.Database) {
         );
     `);
 
+    // Tax returns table - stores tax return details per financial year
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS tax_returns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            financial_year TEXT NOT NULL UNIQUE,
+            total_tax_charge REAL NOT NULL,
+            payment_deadline TEXT NOT NULL,
+            paye_tax REAL NOT NULL DEFAULT 0,
+            savings_tax REAL NOT NULL DEFAULT 0,
+            child_benefit_payback REAL NOT NULL DEFAULT 0,
+            payment_reference TEXT,
+            personal_allowance_reduction TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `);
+
     // Add url column to existing bank_accounts table if it doesn't exist
     try {
         const columns = db.prepare("PRAGMA table_info(bank_accounts)").all() as any[];
@@ -197,6 +215,7 @@ function initializeSchema(db: Database.Database) {
         CREATE INDEX IF NOT EXISTS idx_bank_accounts_name ON bank_accounts(name);
         CREATE INDEX IF NOT EXISTS idx_bank_accounts_bank ON bank_accounts(bank);
         CREATE INDEX IF NOT EXISTS idx_financial_year_summaries_year ON financial_year_summaries(financial_year);
+        CREATE INDEX IF NOT EXISTS idx_tax_returns_year ON tax_returns(financial_year);
     `);
 
     console.log("Database schema initialized at:", DB_PATH);

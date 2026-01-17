@@ -85,3 +85,31 @@ export interface BankAccountInput {
     url?: string;
     notes?: string;
 }
+
+// Tax Return types
+export interface TaxReturn {
+    id: number;
+    financial_year: string;
+    total_tax_charge: number;
+    payment_deadline: string;
+    paye_tax: number;
+    savings_tax: number;
+    child_benefit_payback: number;
+    payment_reference: string | null;
+    personal_allowance_reduction: string | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TaxReturnInput {
+    financial_year: string;
+    total_tax_charge: number;
+    payment_deadline: string;
+    paye_tax?: number;
+    savings_tax?: number;
+    child_benefit_payback?: number;
+    payment_reference?: string;
+    personal_allowance_reduction?: string;
+    notes?: string;
+}

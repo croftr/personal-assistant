@@ -27,11 +27,13 @@ export default function AccountantPage() {
     pensions,
     financialYears,
     bankAccounts,
+    taxReturns,
     loading,
     totals,
     refreshPensions,
     refreshFinancialYears,
-    refreshBankAccounts
+    refreshBankAccounts,
+    refreshTaxReturns
   } = useAccountantData();
 
   const [summary, setSummary] = useState<{
@@ -41,15 +43,28 @@ export default function AccountantPage() {
   } | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"pensions" | "banks" | "financial-years" | null>(null);
+  const [activeTab, setActiveTab] = useState<"pensions" | "banks" | "financial-years" | "tax-returns" | null>(null);
   const [welcomeFetched, setWelcomeFetched] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPensionForm, setShowPensionForm] = useState(false);
   const [showBankForm, setShowBankForm] = useState(false);
+  const [showTaxReturnForm, setShowTaxReturnForm] = useState(false);
   const [editingPensionId, setEditingPensionId] = useState<number | null>(null);
   const [editingBankId, setEditingBankId] = useState<number | null>(null);
+  const [editingTaxReturnId, setEditingTaxReturnId] = useState<number | null>(null);
   const [pensionForm, setPensionForm] = useState({ name: '', amount: '', url: '', notes: '' });
   const [bankForm, setBankForm] = useState({ name: '', bank: '', amount: '', interest_rate: '', url: '', notes: '' });
+  const [taxReturnForm, setTaxReturnForm] = useState({
+    financial_year: '',
+    total_tax_charge: '',
+    payment_deadline: '',
+    paye_tax: '',
+    savings_tax: '',
+    child_benefit_payback: '',
+    payment_reference: '',
+    personal_allowance_reduction: '',
+    notes: ''
+  });
 
   const generateSummary = async () => {
     try {
@@ -71,47 +86,90 @@ export default function AccountantPage() {
     }
   };
 
-  const generateWelcome = () => {
-    if (welcomeFetched) return;
+  const getCurrentFinancialYear = () => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-11
+    const day = now.getDate();
+    const year = now.getFullYear();
 
-    const allUpdates = [
-      ...pensions.map(p => ({ category: "retirement details", date: new Date(p.updated_at) })),
-      ...financialYears.map(fy => ({ category: "financial year data", date: new Date(fy.updated_at) })),
-      ...bankAccounts.map(b => ({ category: "bank accounts", date: new Date(b.updated_at) }))
-    ].sort((a, b) => b.date.getTime() - a.date.getTime());
-
-    setWelcomeFetched(true);
-
-    if (allUpdates.length === 0) {
-      const msg = "Welcome Rob! Connect some data nodes to begin your financial analysis.";
-      setWelcomeMessage(msg);
-
-      // speak(msg);
-      return;
+    // Financial year starts on April 6
+    let financialYear: number;
+    if (month < 3) {
+      financialYear = year - 1;
+    } else if (month === 3 && day < 6) {
+      financialYear = year - 1;
+    } else {
+      financialYear = year;
     }
 
-    const latest = allUpdates[0];
+    return `${financialYear}/${(financialYear + 1).toString().slice(2)}`;
+  };
+
+  const getFinancialYearProgress = () => {
     const now = new Date();
-    const diffDays = Math.floor((now.getTime() - latest.date.getTime()) / (1000 * 60 * 60 * 24));
+    const currentYear = now.getFullYear();
+    const month = now.getMonth();
+    const day = now.getDate();
 
-    let timeStr = "recently";
-    if (diffDays === 0) timeStr = "today";
-    else if (diffDays === 1) timeStr = "yesterday";
-    else if (diffDays < 7) timeStr = `${diffDays} days ago`;
-    else if (diffDays < 14) timeStr = "last week";
-    else if (diffDays < 31) timeStr = "this month";
-    else timeStr = "a while ago";
+    // Determine which FY we're in and calculate start date
+    let fyStartYear: number;
+    if (month < 3 || (month === 3 && day < 6)) {
+      fyStartYear = currentYear - 1;
+    } else {
+      fyStartYear = currentYear;
+    }
 
-    const msg = `Welcome Rob, you last updated your ${latest.category} ${timeStr}. Do you want to know anything about your finances?`;
+    const fyStart = new Date(fyStartYear, 3, 6); // April 6
+    const fyEnd = new Date(fyStartYear + 1, 3, 5, 23, 59, 59); // April 5 next year
+
+    const totalDays = (fyEnd.getTime() - fyStart.getTime()) / (1000 * 60 * 60 * 24);
+    const daysPassed = (now.getTime() - fyStart.getTime()) / (1000 * 60 * 60 * 24);
+    const progress = Math.min(Math.max((daysPassed / totalDays) * 100, 0), 100);
+
+    const daysRemaining = Math.ceil(totalDays - daysPassed);
+
+    return { progress, daysRemaining, fyEnd };
+  };
+
+  const getCurrentFYEarnings = () => {
+    const currentFY = getCurrentFinancialYear();
+    const fyData = financialYears.find(fy => fy.financial_year === currentFY);
+    return fyData ? fyData.total_taxable_pay : 0;
+  };
+
+  const getEarningsProgress = () => {
+    const TARGET = 100000;
+    const earnings = getCurrentFYEarnings();
+    const progress = Math.min((earnings / TARGET) * 100, 100);
+    const isOverTarget = earnings > TARGET;
+    const isNearTarget = earnings > TARGET * 0.85 && earnings <= TARGET; // 85% threshold
+
+    return {
+      earnings,
+      progress,
+      isOverTarget,
+      isNearTarget,
+      remaining: Math.max(TARGET - earnings, 0),
+      over: Math.max(earnings - TARGET, 0)
+    };
+  };
+
+  const generateWelcome = () => {
+    if (welcomeFetched) return;
+    setWelcomeFetched(true);
+
+    const currentFY = getCurrentFinancialYear();
+    const { daysRemaining } = getFinancialYearProgress();
+
+    const msg = `Financial Year ${currentFY} • ${daysRemaining} days remaining`;
     setWelcomeMessage(msg);
-    speak(msg);
   };
 
   useEffect(() => {
-    if (!loading && !welcomeFetched && (pensions.length > 0 || financialYears.length > 0 || bankAccounts.length > 0)) {
+    if (!loading && !welcomeFetched) {
       generateWelcome();
     }
-  }, [loading, pensions, financialYears, bankAccounts, welcomeFetched]);
+  }, [loading, welcomeFetched]);
 
   const speak = (text: string) => {
     if (typeof window !== "undefined" && window.speechSynthesis) {
@@ -309,6 +367,155 @@ export default function AccountantPage() {
     setShowBankForm(true);
   };
 
+  const deleteTaxReturn = async (year: string) => {
+    if (!confirm(`Are you sure you want to delete tax return for ${year}?`)) return;
+    const res = await fetch(`/api/tax-returns?year=${encodeURIComponent(year)}`, { method: "DELETE" });
+    if ((await res.json()).success) {
+      toast.success("Tax return deleted");
+      refreshTaxReturns();
+    }
+  };
+
+  const handleCreateTaxReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taxReturnForm.financial_year || !taxReturnForm.total_tax_charge || !taxReturnForm.payment_deadline) {
+      toast.error("Financial year, total tax charge, and payment deadline are required");
+      return;
+    }
+
+    try {
+      const isEditing = editingTaxReturnId !== null;
+
+      if (isEditing) {
+        // Find the original tax return to get the original financial year
+        const originalTaxReturn = taxReturns.find(tr => tr.id === editingTaxReturnId);
+        if (!originalTaxReturn) {
+          toast.error("Original tax return not found");
+          return;
+        }
+
+        // If financial year changed, delete old and create new
+        if (originalTaxReturn.financial_year !== taxReturnForm.financial_year) {
+          // Delete old record
+          const deleteRes = await fetch(`/api/tax-returns?year=${encodeURIComponent(originalTaxReturn.financial_year)}`, {
+            method: "DELETE"
+          });
+
+          if (!deleteRes.ok) {
+            toast.error("Failed to delete old tax return");
+            return;
+          }
+
+          // Create new record with new financial year
+          const createRes = await fetch("/api/tax-returns", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              financial_year: taxReturnForm.financial_year,
+              total_tax_charge: parseFloat(taxReturnForm.total_tax_charge),
+              payment_deadline: taxReturnForm.payment_deadline,
+              paye_tax: taxReturnForm.paye_tax ? parseFloat(taxReturnForm.paye_tax) : 0,
+              savings_tax: taxReturnForm.savings_tax ? parseFloat(taxReturnForm.savings_tax) : 0,
+              child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
+              payment_reference: taxReturnForm.payment_reference || undefined,
+              personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
+              notes: taxReturnForm.notes || undefined
+            })
+          });
+
+          const createData = await createRes.json();
+          if (!createData.success) {
+            toast.error(createData.error || "Failed to create new tax return");
+            return;
+          }
+        } else {
+          // Same financial year, just update
+          const updateRes = await fetch(`/api/tax-returns?year=${encodeURIComponent(taxReturnForm.financial_year)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              total_tax_charge: parseFloat(taxReturnForm.total_tax_charge),
+              payment_deadline: taxReturnForm.payment_deadline,
+              paye_tax: taxReturnForm.paye_tax ? parseFloat(taxReturnForm.paye_tax) : 0,
+              savings_tax: taxReturnForm.savings_tax ? parseFloat(taxReturnForm.savings_tax) : 0,
+              child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
+              payment_reference: taxReturnForm.payment_reference || undefined,
+              personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
+              notes: taxReturnForm.notes || undefined
+            })
+          });
+
+          const updateData = await updateRes.json();
+          if (!updateData.success) {
+            toast.error(updateData.error || "Failed to update tax return");
+            return;
+          }
+        }
+
+        toast.success("Tax return updated successfully");
+      } else {
+        // Creating new tax return
+        const res = await fetch("/api/tax-returns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            financial_year: taxReturnForm.financial_year,
+            total_tax_charge: parseFloat(taxReturnForm.total_tax_charge),
+            payment_deadline: taxReturnForm.payment_deadline,
+            paye_tax: taxReturnForm.paye_tax ? parseFloat(taxReturnForm.paye_tax) : 0,
+            savings_tax: taxReturnForm.savings_tax ? parseFloat(taxReturnForm.savings_tax) : 0,
+            child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
+            payment_reference: taxReturnForm.payment_reference || undefined,
+            personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
+            notes: taxReturnForm.notes || undefined
+          })
+        });
+
+        const data = await res.json();
+        if (!data.success) {
+          toast.error(data.error || "Failed to add tax return");
+          return;
+        }
+
+        toast.success("Tax return added successfully");
+      }
+
+      // Reset form and refresh
+      setTaxReturnForm({
+        financial_year: '',
+        total_tax_charge: '',
+        payment_deadline: '',
+        paye_tax: '',
+        savings_tax: '',
+        child_benefit_payback: '',
+        payment_reference: '',
+        personal_allowance_reduction: '',
+        notes: ''
+      });
+      setShowTaxReturnForm(false);
+      setEditingTaxReturnId(null);
+      refreshTaxReturns();
+    } catch (error) {
+      toast.error(`Failed to ${editingTaxReturnId ? 'update' : 'add'} tax return`);
+    }
+  };
+
+  const startEditTaxReturn = (taxReturn: any) => {
+    setTaxReturnForm({
+      financial_year: taxReturn.financial_year,
+      total_tax_charge: taxReturn.total_tax_charge.toString(),
+      payment_deadline: taxReturn.payment_deadline,
+      paye_tax: taxReturn.paye_tax.toString(),
+      savings_tax: taxReturn.savings_tax.toString(),
+      child_benefit_payback: taxReturn.child_benefit_payback.toString(),
+      payment_reference: taxReturn.payment_reference || '',
+      personal_allowance_reduction: taxReturn.personal_allowance_reduction || '',
+      notes: taxReturn.notes || ''
+    });
+    setEditingTaxReturnId(taxReturn.id);
+    setShowTaxReturnForm(true);
+  };
+
 
   // Format currency with 2 decimal places
   const formatCurrency = (amount: number) => {
@@ -341,19 +548,99 @@ export default function AccountantPage() {
         <p className="text-slate-400 mt-2 font-light tracking-widest uppercase text-[10px]">Autonomous Intelligence • Real-time Analysis</p>
 
         {welcomeMessage && (
-          <div className="mt-8 max-w-2xl mx-auto relative group">
+          <div className="mt-8 max-w-3xl mx-auto relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-            <div className="relative glass p-6 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-top-4 duration-1000 flex items-center gap-4">
-              <p className="text-sm font-light text-blue-100/80 leading-relaxed italic tracking-wide flex-1">
-                {welcomeMessage}
-              </p>
-              <button
-                onClick={() => speak(welcomeMessage)}
-                className="p-2 hover:bg-white/10 rounded-full text-blue-300/60 hover:text-blue-300 transition-colors"
-                title="Replay summary"
-              >
-                <Volume2 size={18} />
-              </button>
+            <div className="relative glass p-6 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-top-4 duration-1000">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-bold text-blue-100 tracking-widest uppercase">
+                  {welcomeMessage}
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${getFinancialYearProgress().progress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                <span>6 Apr {getCurrentFinancialYear().split('/')[0]}</span>
+                <span className="text-blue-400">{Math.round(getFinancialYearProgress().progress)}% Complete</span>
+                <span>5 Apr {parseInt(getCurrentFinancialYear().split('/')[0]) + 1}</span>
+              </div>
+
+              {/* Earnings Tracker */}
+              <div className="mt-6 pt-6 border-t border-white/5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                    Taxable Income Target
+                  </p>
+                  <p className={`text-xs font-bold tracking-wider ${
+                    getEarningsProgress().isOverTarget ? 'text-red-400' :
+                    getEarningsProgress().isNearTarget ? 'text-orange-400' :
+                    'text-green-400'
+                  }`}>
+                    £{getEarningsProgress().earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+
+                {/* Earnings Progress Bar */}
+                <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${
+                      getEarningsProgress().isOverTarget
+                        ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
+                        : getEarningsProgress().isNearTarget
+                        ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
+                        : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
+                    }`}
+                    style={{ width: `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                  </div>
+
+                  {/* Target marker at 100% */}
+                  <div className="absolute inset-y-0 right-0 w-0.5 bg-white/30"></div>
+                </div>
+
+                <div className="flex justify-between items-center mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                  <span>£0</span>
+                  {getEarningsProgress().isOverTarget ? (
+                    <span className="text-red-400 animate-pulse">
+                      Over by £{getEarningsProgress().over.toLocaleString('en-GB')}
+                    </span>
+                  ) : getEarningsProgress().isNearTarget ? (
+                    <span className="text-orange-400">
+                      £{getEarningsProgress().remaining.toLocaleString('en-GB')} remaining
+                    </span>
+                  ) : (
+                    <span className="text-green-400">
+                      {Math.round(getEarningsProgress().progress)}% of target
+                    </span>
+                  )}
+                  <span>£100,000</span>
+                </div>
+
+                {getEarningsProgress().isOverTarget && (
+                  <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <p className="text-xs text-red-400 font-medium text-center">
+                      ⚠️ Higher Rate Tax Bracket Alert
+                    </p>
+                  </div>
+                )}
+
+                {getEarningsProgress().isNearTarget && !getEarningsProgress().isOverTarget && (
+                  <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
+                    <p className="text-xs text-orange-400 font-medium text-center">
+                      ⚡ Approaching Target Threshold
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -473,21 +760,29 @@ export default function AccountantPage() {
         </div>
       </section>
 
-      {/* Bottom Right: Future Section */}
-      <section className="absolute bottom-24 right-12 w-80 text-right group opacity-40 hover:opacity-100 transition-opacity">
-        <div className="glass p-6 rounded-3xl border border-dashed border-white/20 hover:border-slate-500/50 transition-all duration-500">
-          <div className="flex justify-end mb-6">
-            <div className="p-3 bg-white/5 rounded-2xl text-slate-500">
-              <TrendingUp size={28} />
+      {/* Bottom Right: Tax Returns */}
+      <section
+        className="absolute bottom-24 right-12 w-80 text-right group cursor-pointer"
+        onClick={() => setActiveTab("tax-returns")}
+      >
+        <div className="glass p-6 rounded-3xl border border-white/5 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all duration-500 group">
+          <div className="flex justify-between items-start mb-6">
+            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-orange-400 group-hover:bg-orange-500/10 transition-colors">
+              <Plus size={16} />
+            </div>
+            <div className="p-3 bg-orange-500/10 rounded-2xl text-orange-400 group-hover:scale-110 transition-transform">
+              <Calculator size={28} />
             </div>
           </div>
-          <h3 className="text-xl font-medium mb-1 tracking-tight text-slate-500">Expenses</h3>
-          <p className="text-slate-600 text-xs mb-4 font-light">Neural Mapping Incoming</p>
+          <h3 className="text-xl font-medium mb-1 tracking-tight">Tax Returns</h3>
+          <p className="text-slate-500 text-xs mb-4 font-light">Annual Assessments</p>
           <div className="flex items-baseline gap-2 justify-end">
-            <span className="text-2xl italic text-slate-700 font-light lowercase">Module Locked</span>
+            <span className="text-3xl font-bold">{taxReturns.length}</span>
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">Filed</span>
           </div>
-          <div className="mt-6 pt-6 border-t border-white/5 flex justify-end items-center text-[10px] font-bold tracking-widest text-slate-700 uppercase">
-            <span>v2.0 Beta</span>
+          <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+            <ArrowUpRight size={14} className="scale-x-[-1] group-hover:-translate-x-1 group-hover:-translate-y-1 transition-transform" />
+            <span>{taxReturns.length} Years</span>
           </div>
         </div>
       </section>
@@ -553,11 +848,20 @@ export default function AccountantPage() {
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-2xl ${activeTab === 'pensions' ? 'bg-purple-500/10 text-purple-400' :
-                  activeTab === 'banks' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-400'
+                  activeTab === 'banks' ? 'bg-blue-500/10 text-blue-400' :
+                    activeTab === 'tax-returns' ? 'bg-orange-500/10 text-orange-400' :
+                      'bg-green-500/10 text-green-400'
                   }`}>
-                  {activeTab === 'pensions' ? <ShieldCheck /> : activeTab === 'banks' ? <Landmark /> : <FileText />}
+                  {activeTab === 'pensions' ? <ShieldCheck /> :
+                    activeTab === 'banks' ? <Landmark /> :
+                      activeTab === 'tax-returns' ? <Calculator /> :
+                        <FileText />}
                 </div>
-                <h2 className="text-2xl font-bold capitalize">{activeTab === 'financial-years' ? 'Financial Years' : activeTab} Management</h2>
+                <h2 className="text-2xl font-bold capitalize">
+                  {activeTab === 'financial-years' ? 'Pay Slips' :
+                    activeTab === 'tax-returns' ? 'Tax Returns' :
+                      activeTab} Management
+                </h2>
               </div>
               <button onClick={() => setActiveTab(null)} className="p-2 hover:bg-white/5 rounded-full text-slate-500"><X /></button>
             </div>
@@ -915,6 +1219,224 @@ export default function AccountantPage() {
                     </label>
                   </div>
 
+                </>
+              )}
+
+              {activeTab === 'tax-returns' && (
+                <>
+                  {/* Summary Card */}
+                  <div className="mb-6 p-5 bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-2xl border border-orange-500/30">
+                    <h3 className="text-lg font-bold text-orange-400 mb-3">Tax Returns Summary</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                        <p className="text-[9px] text-orange-300 uppercase font-black tracking-wider mb-1">Total Returns</p>
+                        <p className="text-2xl font-bold text-orange-400">{taxReturns.length}</p>
+                      </div>
+                      <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                        <p className="text-[9px] text-orange-300 uppercase font-black tracking-wider mb-1">Total Tax Charge</p>
+                        <p className="text-2xl font-bold text-orange-400">£{formatCurrency(taxReturns.reduce((sum, tr) => sum + tr.total_tax_charge, 0))}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tax Returns List */}
+                  <div className="grid gap-4">
+                    {taxReturns.map(tr => (
+                      <div key={tr.id} className="p-5 glass rounded-2xl border border-white/5">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-bold text-xl text-orange-400">FY {tr.financial_year}</h4>
+                            <p className="text-xs text-slate-500 mt-1">Payment deadline: {new Date(tr.payment_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <button onClick={() => startEditTaxReturn(tr)} className="text-slate-600 hover:text-orange-400 transition-colors"><Edit2 size={18} /></button>
+                            <button onClick={() => deleteTaxReturn(tr.financial_year)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+                            <p className="text-[9px] text-red-300 uppercase font-black tracking-wider mb-1">Total Tax Charge</p>
+                            <p className="text-base font-bold text-red-400">£{formatCurrency(tr.total_tax_charge)}</p>
+                          </div>
+                          <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                            <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1">PAYE Tax</p>
+                            <p className="text-base font-bold text-blue-400">£{formatCurrency(tr.paye_tax)}</p>
+                          </div>
+                          <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
+                            <p className="text-[9px] text-green-300 uppercase font-black tracking-wider mb-1">Savings Tax</p>
+                            <p className="text-base font-bold text-green-400">£{formatCurrency(tr.savings_tax)}</p>
+                          </div>
+                          <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                            <p className="text-[9px] text-orange-300 uppercase font-black tracking-wider mb-1">Child Benefit</p>
+                            <p className="text-base font-bold text-orange-400">£{formatCurrency(tr.child_benefit_payback)}</p>
+                          </div>
+                        </div>
+
+                        {tr.payment_reference && (
+                          <p className="text-xs text-slate-400 mb-2">Reference: {tr.payment_reference}</p>
+                        )}
+                        {tr.personal_allowance_reduction && (
+                          <p className="text-xs text-slate-400 mb-2">PA Reduction: {tr.personal_allowance_reduction}</p>
+                        )}
+                        {tr.notes && (
+                          <p className="text-xs text-slate-500 italic mt-3 p-2 bg-white/5 rounded-lg">{tr.notes}</p>
+                        )}
+                      </div>
+                    ))}
+                    {taxReturns.length === 0 && <p className="text-center py-12 text-slate-500 italic">No tax returns added yet.</p>}
+                  </div>
+
+                  {/* Add/Edit Form */}
+                  {!showTaxReturnForm ? (
+                    <div className="mt-6 pt-6 border-t border-white/5">
+                      <button
+                        onClick={() => {
+                          setShowTaxReturnForm(true);
+                          setEditingTaxReturnId(null);
+                          setTaxReturnForm({
+                            financial_year: '',
+                            total_tax_charge: '',
+                            payment_deadline: '',
+                            paye_tax: '',
+                            savings_tax: '',
+                            child_benefit_payback: '',
+                            payment_reference: '',
+                            personal_allowance_reduction: '',
+                            notes: ''
+                          });
+                        }}
+                        className="w-full p-4 glass rounded-2xl border border-dashed border-orange-500/30 hover:border-orange-500/60 hover:bg-orange-500/5 transition-all text-orange-400 font-medium"
+                      >
+                        <Plus className="inline mr-2" size={18} />
+                        Add Tax Return
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreateTaxReturn} className="mt-6 pt-6 border-t border-white/5 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Financial Year *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 2024/25"
+                            value={taxReturnForm.financial_year}
+                            onChange={(e) => setTaxReturnForm({ ...taxReturnForm, financial_year: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Total Tax Charge *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={taxReturnForm.total_tax_charge}
+                            onChange={(e) => setTaxReturnForm({ ...taxReturnForm, total_tax_charge: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-2">Payment Deadline *</label>
+                        <input
+                          type="date"
+                          value={taxReturnForm.payment_deadline}
+                          onChange={(e) => setTaxReturnForm({ ...taxReturnForm, payment_deadline: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">PAYE Tax</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={taxReturnForm.paye_tax}
+                            onChange={(e) => setTaxReturnForm({ ...taxReturnForm, paye_tax: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Savings Tax</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={taxReturnForm.savings_tax}
+                            onChange={(e) => setTaxReturnForm({ ...taxReturnForm, savings_tax: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Child Benefit</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={taxReturnForm.child_benefit_payback}
+                            onChange={(e) => setTaxReturnForm({ ...taxReturnForm, child_benefit_payback: e.target.value })}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-2">Payment Reference</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., 7930446778K"
+                          value={taxReturnForm.payment_reference}
+                          onChange={(e) => setTaxReturnForm({ ...taxReturnForm, payment_reference: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-2">Personal Allowance Reduction</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Reduced to £10,000"
+                          value={taxReturnForm.personal_allowance_reduction}
+                          onChange={(e) => setTaxReturnForm({ ...taxReturnForm, personal_allowance_reduction: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-2">Notes</label>
+                        <textarea
+                          placeholder="Additional notes..."
+                          value={taxReturnForm.notes}
+                          onChange={(e) => setTaxReturnForm({ ...taxReturnForm, notes: e.target.value })}
+                          rows={3}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 resize-none"
+                        />
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          className="flex-1 px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-medium transition-colors"
+                        >
+                          {editingTaxReturnId ? 'Update' : 'Add'} Tax Return
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowTaxReturnForm(false);
+                            setEditingTaxReturnId(null);
+                          }}
+                          className="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </>
               )}
             </div>

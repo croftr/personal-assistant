@@ -13,30 +13,30 @@ export async function POST(req: NextRequest) {
         if (contentType.includes("multipart/form-data")) {
             const fd = await req.formData();
             const dataStr = fd.get("data");
-            body = dataStr ? JSON.parse(dataStr as string) : { pensions: [], payslips: [], bankAccounts: [] };
+            body = dataStr ? JSON.parse(dataStr as string) : { pensions: [], financialYears: [], bankAccounts: [] };
         } else {
             body = await req.json();
         }
 
-        const { pensions, payslips, bankAccounts } = body;
+        const { pensions, financialYears, bankAccounts } = body;
 
         const prompt = `
             As a professional financial advisor, analyze the following financial data and provide a concise summary and strategic recommendations.
-            
+
             Pensions:
             ${JSON.stringify(pensions, null, 2)}
-            
-            Recent Payslips:
-            ${JSON.stringify(payslips.slice(0, 5), null, 2)}
-            
+
+            Financial Year Summaries (Year-to-Date Tax and Earnings):
+            ${JSON.stringify(financialYears, null, 2)}
+
             Bank Accounts:
             ${JSON.stringify(bankAccounts, null, 2)}
-            
+
             Please provide:
             1. A brief "Financial Health Score" (out of 10).
-            2. A one-sentence summary of the current status.
+            2. A one-sentence summary of the current financial status.
             3. Three key recommendations for improvement (e.g., tax efficiency, savings rate, pension consolidation).
-            
+
             Return the response in raw JSON format:
             {
               "score": number,
