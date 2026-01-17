@@ -1,30 +1,41 @@
 import { useState, useEffect, useMemo } from "react";
-import type { Pension, Payslip, BankAccount } from "@/types/accountant";
-import { groupByFinancialYear } from "@/lib/utils/financial-year";
+import type { Pension, BankAccount } from "@/types/accountant";
+
+export interface FinancialYearSummary {
+    id: number;
+    financial_year: string;
+    last_payslip_date: string;
+    total_taxable_pay: number;
+    total_taxable_ni_pay: number;
+    total_paye_tax: number;
+    total_ni: number;
+    created_at: string;
+    updated_at: string;
+}
 
 export function useAccountantData() {
     const [pensions, setPensions] = useState<Pension[]>([]);
-    const [payslips, setPayslips] = useState<Payslip[]>([]);
+    const [financialYears, setFinancialYears] = useState<FinancialYearSummary[]>([]);
     const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [pRes, psRes, bRes] = await Promise.all([
+                const [pRes, fyRes, bRes] = await Promise.all([
                     fetch("/api/pensions"),
-                    fetch("/api/payslips"),
+                    fetch("/api/financial-years"),
                     fetch("/api/bank-accounts")
                 ]);
 
-                const [pData, psData, bData] = await Promise.all([
+                const [pData, fyData, bData] = await Promise.all([
                     pRes.json(),
-                    psRes.json(),
+                    fyRes.json(),
                     bRes.json()
                 ]);
 
                 if (pData.success) setPensions(pData.pensions);
-                if (psData.success) setPayslips(psData.payslips);
+                if (fyData.success) setFinancialYears(fyData.summaries);
                 if (bData.success) setBankAccounts(bData.accounts);
             } catch (error) {
                 console.error("Failed to fetch accountant data:", error);
@@ -38,19 +49,21 @@ export function useAccountantData() {
     const totals = useMemo(() => {
         const pensionTotal = pensions.reduce((sum, p) => sum + p.amount, 0);
         const bankTotal = bankAccounts.reduce((sum, a) => sum + a.amount, 0);
-        const netPayTotal = payslips.reduce((sum, p) => sum + p.net_pay, 0);
+
+        // Sum up total taxable pay across all financial years
+        const totalTaxablePay = financialYears.reduce((sum, fy) => sum + fy.total_taxable_pay, 0);
 
         return {
             pensions: pensionTotal,
             banks: bankTotal,
-            payslips: netPayTotal,
-            grandTotal: pensionTotal + bankTotal + netPayTotal
+            payslips: totalTaxablePay,
+            grandTotal: pensionTotal + bankTotal
         };
-    }, [pensions, bankAccounts, payslips]);
+    }, [pensions, bankAccounts, financialYears]);
 
     return {
         pensions,
-        payslips,
+        financialYears,
         bankAccounts,
         loading,
         totals,
@@ -59,10 +72,10 @@ export function useAccountantData() {
             const data = await res.json();
             if (data.success) setPensions(data.pensions);
         },
-        refreshPayslips: async () => {
-            const res = await fetch("/api/payslips");
+        refreshFinancialYears: async () => {
+            const res = await fetch("/api/financial-years");
             const data = await res.json();
-            if (data.success) setPayslips(data.payslips);
+            if (data.success) setFinancialYears(data.summaries);
         },
         refreshBankAccounts: async () => {
             const res = await fetch("/api/bank-accounts");

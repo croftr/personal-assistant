@@ -11,6 +11,12 @@ export interface ProcessedPayslip {
     niPaid?: number;
     pensionContribution?: number;
     otherDeductions?: number;
+    yearToDate?: {
+        totalTaxablePay: number;
+        totalTaxableNIPay: number;
+        totalPAYETax: number;
+        totalNI: number;
+    };
 }
 
 /**
@@ -30,29 +36,31 @@ export async function processPayslips(files: FileData[]): Promise<ProcessedPaysl
             const prompt = `
 Extract the following financial information from this payslip:
 
-1) Pay Date (in YYYY-MM-DD format)
+1) Pay Date (in YYYY-MM-DD format) - required
 2) Net Payment / Total Payment (the final take-home amount after all deductions) - required
-3) Gross Pay / Total Payments (before deductions) - optional
-4) PAYE Income Tax / Tax Paid (total tax deducted) - optional
-5) National Insurance / NI (total NI contributions) - optional
-6) Employer's Pension Deductions / Pension Contribution (employee pension deductions) - optional
-7) Other Deductions (any other deductions not covered above, sum them up) - optional
+
+YEAR TO DATE SECTION (usually found in bottom right box of the payslip):
+3) Total Taxable Pay (Year to Date) - required
+4) Total Taxable NI Pay (Year to Date) - required
+5) Total PAYE Income Tax (Year to Date) - required
+6) Total National Insurance (Year to Date) - required
 
 IMPORTANT:
 - All amounts should be numbers only without currency symbols
 - Assume GBP £ currency
-- For the pension, use the EMPLOYEE'S contribution (deduction), NOT the employer's contribution
-- If a value is not found or not applicable, omit it from the JSON
+- The Year to Date values should come from the "Year to Date" section on the payslip (typically in the bottom right)
+- If Year to Date values are not found, omit the yearToDate object entirely
 
 Return ONLY raw JSON in this exact format:
 {
   "payDate": "YYYY-MM-DD",
   "netPay": 0.00,
-  "grossPay": 0.00,
-  "taxPaid": 0.00,
-  "niPaid": 0.00,
-  "pensionContribution": 0.00,
-  "otherDeductions": 0.00
+  "yearToDate": {
+    "totalTaxablePay": 0.00,
+    "totalTaxableNIPay": 0.00,
+    "totalPAYETax": 0.00,
+    "totalNI": 0.00
+  }
 }
 `;
 
@@ -95,16 +103,30 @@ Return ONLY raw JSON in this exact format:
                     throw new Error("Net pay is required but not found");
                 }
 
-                results.push({
+                const processedPayslip: ProcessedPayslip = {
                     fileName: path.basename(file.name),
                     payDate: data.payDate || "N/A",
                     netPay: netPay,
-                    grossPay: cleanAmount(data.grossPay),
-                    taxPaid: cleanAmount(data.taxPaid),
-                    niPaid: cleanAmount(data.niPaid),
-                    pensionContribution: cleanAmount(data.pensionContribution),
-                    otherDeductions: cleanAmount(data.otherDeductions),
-                });
+                };
+
+                // Add year to date data if available
+                if (data.yearToDate) {
+                    const totalTaxablePay = cleanAmount(data.yearToDate.totalTaxablePay);
+                    const totalTaxableNIPay = cleanAmount(data.yearToDate.totalTaxableNIPay);
+                    const totalPAYETax = cleanAmount(data.yearToDate.totalPAYETax);
+                    const totalNI = cleanAmount(data.yearToDate.totalNI);
+
+                    if (totalTaxablePay && totalTaxableNIPay && totalPAYETax !== undefined && totalNI !== undefined) {
+                        processedPayslip.yearToDate = {
+                            totalTaxablePay,
+                            totalTaxableNIPay,
+                            totalPAYETax,
+                            totalNI
+                        };
+                    }
+                }
+
+                results.push(processedPayslip);
             } catch (e) {
                 console.error(`Failed to parse JSON for ${file.name}:`, text, e);
                 results.push({

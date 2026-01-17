@@ -156,6 +156,21 @@ function initializeSchema(db: Database.Database) {
         );
     `);
 
+    // Financial year summaries table - stores year-to-date totals from payslips
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS financial_year_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            financial_year TEXT NOT NULL UNIQUE,
+            last_payslip_date TEXT NOT NULL,
+            total_taxable_pay REAL NOT NULL,
+            total_taxable_ni_pay REAL NOT NULL,
+            total_paye_tax REAL NOT NULL,
+            total_ni REAL NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `);
+
     // Add url column to existing bank_accounts table if it doesn't exist
     try {
         const columns = db.prepare("PRAGMA table_info(bank_accounts)").all() as any[];
@@ -181,6 +196,7 @@ function initializeSchema(db: Database.Database) {
         CREATE INDEX IF NOT EXISTS idx_payslips_created_at ON payslips(created_at);
         CREATE INDEX IF NOT EXISTS idx_bank_accounts_name ON bank_accounts(name);
         CREATE INDEX IF NOT EXISTS idx_bank_accounts_bank ON bank_accounts(bank);
+        CREATE INDEX IF NOT EXISTS idx_financial_year_summaries_year ON financial_year_summaries(financial_year);
     `);
 
     console.log("Database schema initialized at:", DB_PATH);

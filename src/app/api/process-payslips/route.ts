@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { convertUploadedFiles } from "@/lib/common/file-handler";
 import { processPayslips } from "@/lib/payslips/payslip-processor";
-import { createPayslip, getPayslipByFileName, replacePayslip } from "@/lib/payslips/payslip-db-service";
+import { upsertFinancialYearSummary, calculateFinancialYear } from "@/lib/payslips/financial-year-db-service";
 
 export async function POST(req: NextRequest) {
     try {
@@ -10,9 +10,6 @@ export async function POST(req: NextRequest) {
         if (contentType.includes("multipart/form-data")) {
             const formData = await req.formData();
             const rawFiles = formData.getAll("files") as File[];
-            const confirmReplace = formData.get("confirmReplace") === "true";
-            const filesToReplace = formData.get("filesToReplace");
-            const replaceFileNames = filesToReplace ? JSON.parse(filesToReplace as string) : [];
 
             if (!rawFiles || rawFiles.length === 0) {
                 return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -24,71 +21,51 @@ export async function POST(req: NextRequest) {
             // Process payslips using AI
             const results = await processPayslips(filesToProcess);
 
-            // Check for duplicates
-            const duplicates: string[] = [];
-            const newPayslips: typeof results = [];
+            // Process each payslip and update financial year summaries
+            const updatedYears: string[] = [];
+            const skippedPayslips: string[] = [];
+            const errors: string[] = [];
 
             for (const result of results) {
-                const existing = getPayslipByFileName(result.fileName);
-                if (existing) {
-                    duplicates.push(result.fileName);
-                } else {
-                    newPayslips.push(result);
-                }
-            }
+                try {
+                    // Check if year to date data is available
+                    if (!result.yearToDate) {
+                        errors.push(`${result.fileName}: Missing year-to-date data`);
+                        continue;
+                    }
 
-            // If duplicates found and not confirmed, return them for user confirmation
-            if (duplicates.length > 0 && !confirmReplace) {
-                return NextResponse.json({
-                    success: false,
-                    duplicates,
-                    requiresConfirmation: true,
-                    message: `${duplicates.length} payslip(s) already exist. Do you want to replace them?`
-                });
-            }
+                    // Calculate financial year from pay date
+                    const financialYear = calculateFinancialYear(result.payDate);
 
-            // Save payslips to database
-            const payslipIds: number[] = [];
-            for (const result of results) {
-                const shouldReplace = replaceFileNames.includes(result.fileName);
-                const existing = getPayslipByFileName(result.fileName);
-
-                if (existing && shouldReplace) {
-                    // Replace existing payslip
-                    const payslipId = replacePayslip(result.fileName, {
-                        file_name: result.fileName,
-                        pay_date: result.payDate,
-                        net_pay: result.netPay,
-                        gross_pay: result.grossPay,
-                        tax_paid: result.taxPaid,
-                        ni_paid: result.niPaid,
-                        pension_contribution: result.pensionContribution,
-                        other_deductions: result.otherDeductions
+                    // Upsert financial year summary
+                    const upsertResult = upsertFinancialYearSummary({
+                        financial_year: financialYear,
+                        last_payslip_date: result.payDate,
+                        total_taxable_pay: result.yearToDate.totalTaxablePay,
+                        total_taxable_ni_pay: result.yearToDate.totalTaxableNIPay,
+                        total_paye_tax: result.yearToDate.totalPAYETax,
+                        total_ni: result.yearToDate.totalNI
                     });
-                    payslipIds.push(payslipId);
-                } else if (!existing) {
-                    // Create new payslip
-                    const payslipId = createPayslip({
-                        file_name: result.fileName,
-                        pay_date: result.payDate,
-                        net_pay: result.netPay,
-                        gross_pay: result.grossPay,
-                        tax_paid: result.taxPaid,
-                        ni_paid: result.niPaid,
-                        pension_contribution: result.pensionContribution,
-                        other_deductions: result.otherDeductions
-                    });
-                    payslipIds.push(payslipId);
+
+                    if (upsertResult.success && upsertResult.isNewer) {
+                        updatedYears.push(financialYear);
+                    } else if (!upsertResult.isNewer) {
+                        skippedPayslips.push(`${result.fileName} (${upsertResult.message})`);
+                    }
+                } catch (error: any) {
+                    errors.push(`${result.fileName}: ${error.message}`);
                 }
             }
 
             return NextResponse.json({
                 success: true,
                 results,
-                payslipIds,
-                count: payslipIds.length,
-                replaced: replaceFileNames.length,
-                skipped: results.length - payslipIds.length
+                updatedYears: [...new Set(updatedYears)],
+                skippedPayslips,
+                errors,
+                count: results.length,
+                updated: updatedYears.length,
+                skipped: skippedPayslips.length
             });
         }
 
