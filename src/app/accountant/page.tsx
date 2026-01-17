@@ -63,7 +63,8 @@ export default function AccountantPage() {
     child_benefit_payback: '',
     payment_reference: '',
     personal_allowance_reduction: '',
-    notes: ''
+    notes: '',
+    document_url: ''
   });
 
   const generateSummary = async () => {
@@ -419,7 +420,8 @@ export default function AccountantPage() {
               child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
               payment_reference: taxReturnForm.payment_reference || undefined,
               personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
-              notes: taxReturnForm.notes || undefined
+              notes: taxReturnForm.notes || undefined,
+              document_url: taxReturnForm.document_url || undefined
             })
           });
 
@@ -441,7 +443,8 @@ export default function AccountantPage() {
               child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
               payment_reference: taxReturnForm.payment_reference || undefined,
               personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
-              notes: taxReturnForm.notes || undefined
+              notes: taxReturnForm.notes || undefined,
+              document_url: taxReturnForm.document_url || undefined
             })
           });
 
@@ -467,7 +470,8 @@ export default function AccountantPage() {
             child_benefit_payback: taxReturnForm.child_benefit_payback ? parseFloat(taxReturnForm.child_benefit_payback) : 0,
             payment_reference: taxReturnForm.payment_reference || undefined,
             personal_allowance_reduction: taxReturnForm.personal_allowance_reduction || undefined,
-            notes: taxReturnForm.notes || undefined
+            notes: taxReturnForm.notes || undefined,
+            document_url: taxReturnForm.document_url || undefined
           })
         });
 
@@ -490,7 +494,8 @@ export default function AccountantPage() {
         child_benefit_payback: '',
         payment_reference: '',
         personal_allowance_reduction: '',
-        notes: ''
+        notes: '',
+        document_url: ''
       });
       setShowTaxReturnForm(false);
       setEditingTaxReturnId(null);
@@ -510,7 +515,8 @@ export default function AccountantPage() {
       child_benefit_payback: taxReturn.child_benefit_payback.toString(),
       payment_reference: taxReturn.payment_reference || '',
       personal_allowance_reduction: taxReturn.personal_allowance_reduction || '',
-      notes: taxReturn.notes || ''
+      notes: taxReturn.notes || '',
+      document_url: taxReturn.document_url || ''
     });
     setEditingTaxReturnId(taxReturn.id);
     setShowTaxReturnForm(true);
@@ -583,8 +589,8 @@ export default function AccountantPage() {
                     Taxable Income Target
                   </p>
                   <p className={`text-xs font-bold tracking-wider ${getEarningsProgress().isOverTarget ? 'text-red-400' :
-                      getEarningsProgress().isNearTarget ? 'text-orange-400' :
-                        'text-green-400'
+                    getEarningsProgress().isNearTarget ? 'text-orange-400' :
+                      'text-green-400'
                     }`}>
                     £{getEarningsProgress().earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
@@ -594,10 +600,10 @@ export default function AccountantPage() {
                 <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${getEarningsProgress().isOverTarget
-                        ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
-                        : getEarningsProgress().isNearTarget
-                          ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
-                          : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
+                      ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
+                      : getEarningsProgress().isNearTarget
+                        ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
+                        : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
                       }`}
                     style={{ width: `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` }}
                   >
@@ -888,9 +894,21 @@ export default function AccountantPage() {
                   {/* Pension List */}
                   <div className="grid gap-4">
                     {pensions.map(p => (
-                      <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
-                        <div>
-                          <h4 className="font-bold">{p.name}</h4>
+                      <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center group/item hover:border-purple-500/20 transition-all">
+                        <div className="flex-1">
+                          {p.url ? (
+                            <a
+                              href={p.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold flex items-center gap-2 text-white hover:text-purple-400 transition-colors"
+                            >
+                              {p.name}
+                              <ExternalLink size={14} className="opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                            </a>
+                          ) : (
+                            <h4 className="font-bold">{p.name}</h4>
+                          )}
                           <p className="text-xs text-slate-500">{p.notes || 'No description'}</p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -1250,6 +1268,17 @@ export default function AccountantPage() {
                             <p className="text-xs text-slate-500 mt-1">Payment deadline: {new Date(tr.payment_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                           </div>
                           <div className="flex items-center gap-4">
+                            {tr.document_url && (
+                              <a
+                                href={tr.document_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-orange-500/10 rounded-lg text-orange-400 hover:bg-orange-500/20 transition-all flex items-center gap-2 text-xs font-bold"
+                              >
+                                <ExternalLink size={14} />
+                                DOCS
+                              </a>
+                            )}
                             <button onClick={() => startEditTaxReturn(tr)} className="text-slate-600 hover:text-orange-400 transition-colors"><Edit2 size={18} /></button>
                             <button onClick={() => deleteTaxReturn(tr.financial_year)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
                           </div>
@@ -1304,7 +1333,8 @@ export default function AccountantPage() {
                             child_benefit_payback: '',
                             payment_reference: '',
                             personal_allowance_reduction: '',
-                            notes: ''
+                            notes: '',
+                            document_url: ''
                           });
                         }}
                         className="w-full p-4 glass rounded-2xl border border-dashed border-orange-500/30 hover:border-orange-500/60 hover:bg-orange-500/5 transition-all text-orange-400 font-medium"
@@ -1413,8 +1443,19 @@ export default function AccountantPage() {
                           placeholder="Additional notes..."
                           value={taxReturnForm.notes}
                           onChange={(e) => setTaxReturnForm({ ...taxReturnForm, notes: e.target.value })}
-                          rows={3}
+                          rows={2}
                           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 block mb-2">Document Shared Link (optional)</label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={taxReturnForm.document_url || ''}
+                          onChange={(e) => setTaxReturnForm({ ...taxReturnForm, document_url: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50"
                         />
                       </div>
 

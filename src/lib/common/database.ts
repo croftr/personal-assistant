@@ -184,6 +184,7 @@ function initializeSchema(db: Database.Database) {
             payment_reference TEXT,
             personal_allowance_reduction TEXT,
             notes TEXT,
+            document_url TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -199,6 +200,18 @@ function initializeSchema(db: Database.Database) {
         }
     } catch (error) {
         console.log("bank_accounts url column migration check:", error);
+    }
+
+    // Add document_url column to existing tax_returns table if it doesn't exist
+    try {
+        const columns = db.prepare("PRAGMA table_info(tax_returns)").all() as any[];
+        const hasDocUrlColumn = columns.some(col => col.name === 'document_url');
+        if (!hasDocUrlColumn) {
+            db.exec(`ALTER TABLE tax_returns ADD COLUMN document_url TEXT;`);
+            console.log("Added document_url column to tax_returns table");
+        }
+    } catch (error) {
+        console.log("tax_returns document_url column migration check:", error);
     }
 
     // Create indexes for better query performance

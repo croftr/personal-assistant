@@ -11,6 +11,7 @@ export interface TaxReturn {
     payment_reference: string | null;
     personal_allowance_reduction: string | null;
     notes: string | null;
+    document_url: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -25,6 +26,7 @@ export interface TaxReturnInput {
     payment_reference?: string;
     personal_allowance_reduction?: string;
     notes?: string;
+    document_url?: string;
 }
 
 /**
@@ -67,8 +69,9 @@ export function createTaxReturn(taxReturn: TaxReturnInput): TaxReturn {
             child_benefit_payback,
             payment_reference,
             personal_allowance_reduction,
-            notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            notes,
+            document_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -80,7 +83,8 @@ export function createTaxReturn(taxReturn: TaxReturnInput): TaxReturn {
         taxReturn.child_benefit_payback ?? 0,
         taxReturn.payment_reference ?? null,
         taxReturn.personal_allowance_reduction ?? null,
-        taxReturn.notes ?? null
+        taxReturn.notes ?? null,
+        taxReturn.document_url ?? null
     );
 
     const created = getTaxReturn(taxReturn.financial_year);
@@ -109,6 +113,7 @@ export function updateTaxReturn(
             payment_reference = COALESCE(?, payment_reference),
             personal_allowance_reduction = COALESCE(?, personal_allowance_reduction),
             notes = COALESCE(?, notes),
+            document_url = COALESCE(?, document_url),
             updated_at = datetime('now')
         WHERE financial_year = ?
     `);
@@ -122,6 +127,7 @@ export function updateTaxReturn(
         taxReturn.payment_reference,
         taxReturn.personal_allowance_reduction,
         taxReturn.notes,
+        taxReturn.document_url,
         financialYear
     );
 
