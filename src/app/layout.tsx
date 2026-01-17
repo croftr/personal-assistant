@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Rob's Personal Assistant",
   description: "AI-powered administrative tasks automation",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

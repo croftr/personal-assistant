@@ -599,7 +599,10 @@ export default function ExpensesPage() {
       />
       <div className="max-w-7xl w-full glass rounded-3xl p-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
 
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center mb-2">
+            <img src="/logo.svg" alt="Logo" className="w-20 h-20 animate-float" />
+          </div>
           <h1 className="text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
             Expense Processor
           </h1>
@@ -792,176 +795,176 @@ export default function ExpensesPage() {
                 Additional Actions (Optional)
               </h3>
 
-          {/* Step 1: Create ZIP */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete"
-                  ? "bg-green-600"
-                  : "bg-white/10"
-                  }`}>
-                  {workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete" ? (
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  ) : (
-                    <span className="text-sm text-gray-400">1</span>
-                  )}
+              {/* Step 1: Create ZIP */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete"
+                      ? "bg-green-600"
+                      : "bg-white/10"
+                      }`}>
+                      {workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete" ? (
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                      ) : (
+                        <span className="text-sm text-gray-400">1</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-200">Create ZIP Archive</p>
+                      <p className="text-xs text-gray-400">Bundle receipts and CSV into a single file</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-200">Create ZIP Archive</p>
-                  <p className="text-xs text-gray-400">Bundle receipts and CSV into a single file</p>
-                </div>
-              </div>
-            </div>
 
-            {workflowStep !== "zip" && workflowStep !== "email" && workflowStep !== "complete" && (
-              <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
-                {!csvContent && (
-                  <>
-                    <label className="text-xs text-gray-400">Folder path containing receipts:</label>
+                {workflowStep !== "zip" && workflowStep !== "email" && workflowStep !== "complete" && (
+                  <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
+                    {!csvContent && (
+                      <>
+                        <label className="text-xs text-gray-400">Folder path containing receipts:</label>
+                        <input
+                          type="text"
+                          placeholder="C:\path\to\receipts"
+                          value={standaloneZipPath}
+                          onChange={(e) => setStandaloneZipPath(e.target.value)}
+                          className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm font-mono"
+                        />
+                      </>
+                    )}
+                    <button
+                      onClick={() => handleCreateZip(!csvContent)}
+                      disabled={isProcessing || (!csvContent && !standaloneZipPath)}
+                      className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
+                    >
+                      <FolderArchive className="w-4 h-4" />
+                      {isProcessing ? "Creating..." : "Create ZIP"}
+                    </button>
+                  </div>
+                )}
+
+                {(workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete") && (
+                  <div className="ml-11">
+                    <span className="text-sm text-green-400">✓ Created: {zipFileName}</span>
+                    <button
+                      onClick={() => setWorkflowStep("idle")}
+                      className="ml-4 text-xs text-gray-400 hover:text-white"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Send Email */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "complete"
+                      ? "bg-green-600"
+                      : "bg-white/10"
+                      }`}>
+                      {workflowStep === "complete" ? (
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                      ) : (
+                        <span className="text-sm text-gray-400">2</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-200">Send Email</p>
+                      <p className="text-xs text-gray-400">Email a ZIP file to recipient</p>
+                    </div>
+                  </div>
+                </div>
+
+                {workflowStep !== "complete" && (
+                  <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
+                    {/* ZIP File Status */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
+                        ZIP Archive <span className="text-red-500">*</span>
+                      </label>
+                      {!zipData && !uploadedZipFile ? (
+                        <>
+                          <input
+                            type="file"
+                            accept=".zip"
+                            onChange={(e) => setUploadedZipFile(e.target.files?.[0] || null)}
+                            className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500"
+                          />
+                        </>
+                      ) : (
+                        <div className="p-3 rounded-lg bg-green-600/10 border border-green-500/20">
+                          <p className="text-sm text-green-400 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            ZIP file attached: <span className="font-mono">{uploadedZipFile?.name || zipFileName}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
+                        Recipient Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="e.g. finance@company.com"
+                        value={emailRecipient}
+                        onChange={(e) => setEmailRecipient(e.target.value)}
+                        className={`w-full bg-black/20 border ${!emailRecipient ? 'border-yellow-500/30' : 'border-white/10'} rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm`}
+                      />
+                    </div>
                     <input
                       type="text"
-                      placeholder="C:\path\to\receipts"
-                      value={standaloneZipPath}
-                      onChange={(e) => setStandaloneZipPath(e.target.value)}
-                      className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm font-mono"
+                      placeholder={`Subject (optional, defaults to: ${reportName})`}
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
                     />
-                  </>
-                )}
-                <button
-                  onClick={() => handleCreateZip(!csvContent)}
-                  disabled={isProcessing || (!csvContent && !standaloneZipPath)}
-                  className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
-                >
-                  <FolderArchive className="w-4 h-4" />
-                  {isProcessing ? "Creating..." : "Create ZIP"}
-                </button>
-              </div>
-            )}
-
-            {(workflowStep === "zip" || workflowStep === "email" || workflowStep === "complete") && (
-              <div className="ml-11">
-                <span className="text-sm text-green-400">✓ Created: {zipFileName}</span>
-                <button
-                  onClick={() => setWorkflowStep("idle")}
-                  className="ml-4 text-xs text-gray-400 hover:text-white"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Step 2: Send Email */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${workflowStep === "complete"
-                  ? "bg-green-600"
-                  : "bg-white/10"
-                  }`}>
-                  {workflowStep === "complete" ? (
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  ) : (
-                    <span className="text-sm text-gray-400">2</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-200">Send Email</p>
-                  <p className="text-xs text-gray-400">Email a ZIP file to recipient</p>
-                </div>
-              </div>
-            </div>
-
-            {workflowStep !== "complete" && (
-              <div className="ml-11 space-y-3 bg-black/20 p-4 rounded-lg border border-white/5">
-                {/* ZIP File Status */}
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
-                    ZIP Archive <span className="text-red-500">*</span>
-                  </label>
-                  {!zipData && !uploadedZipFile ? (
-                    <>
-                      <input
-                        type="file"
-                        accept=".zip"
-                        onChange={(e) => setUploadedZipFile(e.target.files?.[0] || null)}
-                        className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500"
-                      />
-                    </>
-                  ) : (
-                    <div className="p-3 rounded-lg bg-green-600/10 border border-green-500/20">
-                      <p className="text-sm text-green-400 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" />
-                        ZIP file attached: <span className="font-mono">{uploadedZipFile?.name || zipFileName}</span>
+                    <textarea
+                      placeholder="Message (optional, defaults to: Please find your expenses attached Sir)"
+                      value={emailMessage}
+                      onChange={(e) => setEmailMessage(e.target.value)}
+                      rows={3}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm resize-none"
+                    />
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={isProcessing || !emailRecipient || (!zipData && !uploadedZipFile)}
+                      className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
+                    >
+                      <Mail className="w-4 h-4" />
+                      {isProcessing ? "Sending..." : "Send Email"}
+                    </button>
+                    {(!zipData && !uploadedZipFile) && (
+                      <p className="text-[10px] text-yellow-500/70 text-center">
+                        Please create or upload a ZIP file first
                       </p>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-300 ml-1 flex items-center gap-1">
-                    Recipient Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="e.g. finance@company.com"
-                    value={emailRecipient}
-                    onChange={(e) => setEmailRecipient(e.target.value)}
-                    className={`w-full bg-black/20 border ${!emailRecipient ? 'border-yellow-500/30' : 'border-white/10'} rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm`}
-                  />
-                </div>
-                <input
-                  type="text"
-                  placeholder={`Subject (optional, defaults to: ${reportName})`}
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm"
-                />
-                <textarea
-                  placeholder="Message (optional, defaults to: Please find your expenses attached Sir)"
-                  value={emailMessage}
-                  onChange={(e) => setEmailMessage(e.target.value)}
-                  rows={3}
-                  className="w-full bg-black/20 border border-white/10 rounded-lg py-2 px-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500/50 text-sm resize-none"
-                />
-                <button
-                  onClick={handleSendEmail}
-                  disabled={isProcessing || !emailRecipient || (!zipData && !uploadedZipFile)}
-                  className="w-full px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all disabled:bg-gray-800 disabled:text-gray-400"
-                >
-                  <Mail className="w-4 h-4" />
-                  {isProcessing ? "Sending..." : "Send Email"}
-                </button>
-                {(!zipData && !uploadedZipFile) && (
-                  <p className="text-[10px] text-yellow-500/70 text-center">
-                    Please create or upload a ZIP file first
-                  </p>
+                    )}
+                    {!emailRecipient && (
+                      <p className="text-[10px] text-yellow-500/70 text-center">
+                        Recipient email is required
+                      </p>
+                    )}
+                  </div>
                 )}
-                {!emailRecipient && (
-                  <p className="text-[10px] text-yellow-500/70 text-center">
-                    Recipient email is required
-                  </p>
-                )}
-              </div>
-            )}
 
-            {workflowStep === "complete" && (
-              <div className="ml-11">
-                <span className="text-sm text-green-400">✓ Email sent successfully to {emailRecipient}</span>
-                <button
-                  onClick={() => {
-                    setWorkflowStep("idle");
-                    setEmailRecipient("rob80659@gchq.gov.uk");
-                    setEmailSubject("");
-                    setEmailMessage("");
-                    setUploadedZipFile(null);
-                  }}
-                  className="ml-4 text-xs text-gray-400 hover:text-white"
-                >
-                  Send Another
-                </button>
+                {workflowStep === "complete" && (
+                  <div className="ml-11">
+                    <span className="text-sm text-green-400">✓ Email sent successfully to {emailRecipient}</span>
+                    <button
+                      onClick={() => {
+                        setWorkflowStep("idle");
+                        setEmailRecipient("rob80659@gchq.gov.uk");
+                        setEmailSubject("");
+                        setEmailMessage("");
+                        setUploadedZipFile(null);
+                      }}
+                      className="ml-4 text-xs text-gray-400 hover:text-white"
+                    >
+                      Send Another
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
             </div>
           </div>
 

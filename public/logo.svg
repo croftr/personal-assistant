@@ -1,0 +1,50 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Body shadow/glow -->
+  <circle cx="100" cy="110" r="70" fill="url(#body_glow)" opacity="0.3" />
+  
+  <!-- Piggy Body -->
+  <path d="M160 110C160 143.137 133.137 170 100 170C66.8629 170 40 143.137 40 110C40 76.8629 66.8629 50 100 50C133.137 50 160 76.8629 160 110Z" fill="url(#body_gradient)" />
+  
+  <!-- Ears -->
+  <path d="M65 60L45 35L80 50L65 60Z" fill="#3b82f6" />
+  <path d="M135 60L155 35L120 50L135 60Z" fill="#8b5cf6" />
+  
+  <!-- Sunglasses -->
+  <rect x="55" y="85" width="90" height="28" rx="14" fill="#0f172a" />
+  <circle cx="75" cy="99" r="10" fill="#1e293b" />
+  <circle cx="125" cy="99" r="10" fill="#1e293b" />
+  <!-- Glass reflection -->
+  <rect x="68" y="92" width="6" height="4" rx="2" fill="white" opacity="0.2" />
+  <rect x="118" y="92" width="6" height="4" rx="2" fill="white" opacity="0.2" />
+
+  <!-- Snout -->
+  <rect x="85" y="125" width="30" height="20" rx="10" fill="url(#snout_gradient)" />
+  <circle cx="93" cy="135" r="3" fill="#0f172a" opacity="0.4" />
+  <circle cx="107" cy="135" r="3" fill="#0f172a" opacity="0.4" />
+
+  <!-- Floating Coin -->
+  <g>
+    <animateTransform attributeName="transform" type="translate" values="0,0; 0,-8; 0,0" dur="3s" repeatCount="indefinite" />
+     <circle cx="100" cy="30" r="18" fill="url(#coin_gradient)" />
+     <text x="94" y="37" fill="#92400e" font-family="Arial, sans-serif" font-size="20" font-weight="900" style="pointer-events: none;">£</text>
+  </g>
+
+  <defs>
+    <radialGradient id="body_glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(100 110) rotate(90) scale(70)">
+      <stop stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="body_gradient" x1="40" y1="50" x2="160" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3b82f6" />
+      <stop offset="1" stop-color="#8b5cf6" />
+    </linearGradient>
+    <linearGradient id="snout_gradient" x1="85" y1="125" x2="115" y2="145" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#cbd5e1" />
+      <stop offset="1" stop-color="#94a3b8" />
+    </linearGradient>
+    <linearGradient id="coin_gradient" x1="82" y1="12" x2="118" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fbbf24" />
+      <stop offset="1" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+</svg>

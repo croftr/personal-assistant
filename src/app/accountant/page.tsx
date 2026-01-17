@@ -542,9 +542,12 @@ export default function AccountantPage() {
 
       {/* Title */}
       <div className="absolute top-12 left-1/2 -translate-x-1/2 text-center z-20">
-        <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
-          FINANCIAL ENGINE
-        </h1>
+        <div className="flex flex-col items-center mb-2">
+          <img src="/logo.svg" alt="Logo" className="w-16 h-16 mb-2 animate-float" />
+          <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
+            FINANCIAL ENGINE
+          </h1>
+        </div>
         <p className="text-slate-400 mt-2 font-light tracking-widest uppercase text-[10px]">Autonomous Intelligence • Real-time Analysis</p>
 
         {welcomeMessage && (
@@ -579,11 +582,10 @@ export default function AccountantPage() {
                   <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
                     Taxable Income Target
                   </p>
-                  <p className={`text-xs font-bold tracking-wider ${
-                    getEarningsProgress().isOverTarget ? 'text-red-400' :
-                    getEarningsProgress().isNearTarget ? 'text-orange-400' :
-                    'text-green-400'
-                  }`}>
+                  <p className={`text-xs font-bold tracking-wider ${getEarningsProgress().isOverTarget ? 'text-red-400' :
+                      getEarningsProgress().isNearTarget ? 'text-orange-400' :
+                        'text-green-400'
+                    }`}>
                     £{getEarningsProgress().earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -591,13 +593,12 @@ export default function AccountantPage() {
                 {/* Earnings Progress Bar */}
                 <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${
-                      getEarningsProgress().isOverTarget
+                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${getEarningsProgress().isOverTarget
                         ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
                         : getEarningsProgress().isNearTarget
-                        ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
-                        : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
-                    }`}
+                          ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
+                          : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
+                      }`}
                     style={{ width: `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` }}
                   >
                     <div className="absolute inset-0 bg-white/20 animate-pulse"></div>

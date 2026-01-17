@@ -42,7 +42,17 @@ export default function Home() {
       <div className="max-w-5xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700">
 
         {/* Header */}
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-6">
+          <div className="flex justify-center mb-2">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <img
+                src="/logo.svg"
+                alt="App Logo"
+                className="relative w-32 h-32 md:w-40 md:h-40 animate-float"
+              />
+            </div>
+          </div>
           <h1 className="text-6xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
             Welcome, Rob
           </h1>
