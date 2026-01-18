@@ -529,11 +529,11 @@ export default function AccountantPage() {
   };
 
   return (
-    <main className="min-h-screen gradient-bg text-white overflow-hidden relative font-sans">
+    <main className="min-h-screen gradient-bg text-white md:overflow-hidden overflow-y-auto overflow-x-hidden relative font-sans scroll-smooth">
       <Toaster position="top-right" />
 
       {/* Background SVG for Data Flow */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+      <svg className="fixed inset-0 w-full h-full pointer-events-none opacity-20">
         <defs>
           <linearGradient id="flow-grad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="var(--accent-blue)" />
@@ -547,7 +547,7 @@ export default function AccountantPage() {
       </svg>
 
       {/* Title */}
-      <div className="absolute top-12 left-1/2 -translate-x-1/2 text-center z-20">
+      <div className="md:absolute md:top-12 md:left-1/2 md:-translate-x-1/2 text-center z-20 relative pt-12 px-4 mb-12 md:mb-0">
         <div className="flex flex-col items-center mb-2">
           <img src="/logo.svg" alt="Logo" className="w-16 h-16 mb-2 animate-float" />
           <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
@@ -654,12 +654,12 @@ export default function AccountantPage() {
       </div>
 
       {/* Central Engine Visual */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center w-[500px] h-[500px] z-10">
-        <div className="absolute w-full h-full border border-blue-500/10 rounded-full animate-spin-slow"></div>
-        <div className="absolute w-[80%] h-[80%] border border-purple-500/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
-        <div className="absolute w-[60%] h-[60%] border border-indigo-500/10 rounded-full border-dashed animate-spin-slow"></div>
+      <div className="md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 flex flex-col items-center justify-center w-full md:w-[500px] md:h-[500px] z-10 relative mb-48 md:mb-0 px-4">
+        <div className="absolute w-[300px] h-[300px] md:w-full md:h-full border border-blue-500/10 rounded-full animate-spin-slow"></div>
+        <div className="absolute w-[240px] h-[240px] md:w-[80%] md:h-[80%] border border-purple-500/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
+        <div className="absolute w-[180px] h-[180px] md:w-[60%] md:h-[60%] border border-indigo-500/10 rounded-full border-dashed animate-spin-slow"></div>
 
-        <div className="relative group cursor-pointer" onClick={generateSummary}>
+        <div className="relative group cursor-pointer scale-90 md:scale-100" onClick={generateSummary}>
           <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-10 group-hover:opacity-30 transition-opacity"></div>
           <div className="w-56 h-56 rounded-full glass flex flex-col items-center justify-center border border-white/10 relative overflow-hidden backdrop-blur-3xl shadow-2xl">
             <div className="absolute inset-0 animate-pulse-ring rounded-full border border-blue-400/20"></div>
@@ -678,7 +678,7 @@ export default function AccountantPage() {
           </div>
         </div>
 
-        <div className="absolute -bottom-32 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5">
+        <div className="md:absolute md:-bottom-32 relative mt-12 md:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] md:w-auto">
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[.4em] mb-1">Consolidated Net Worth</p>
           <h2 className="text-4xl font-light tracking-tight pb-1">£{totals.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</h2>
         </div>
@@ -688,7 +688,7 @@ export default function AccountantPage() {
 
       {/* Top Left: Pensions */}
       <section
-        className="absolute top-24 left-12 w-80 group cursor-pointer"
+        className="md:absolute md:top-24 md:left-12 w-full max-w-sm mx-auto md:w-80 group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
         onClick={() => setActiveTab("pensions")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all duration-500 group">
@@ -715,7 +715,7 @@ export default function AccountantPage() {
 
       {/* Top Right: Bank Accounts */}
       <section
-        className="absolute top-24 right-12 w-80 text-right group cursor-pointer"
+        className="md:absolute md:top-24 md:right-12 w-full max-w-sm mx-auto md:w-80 md:text-right group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
         onClick={() => setActiveTab("banks")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all duration-500 group">
@@ -729,7 +729,7 @@ export default function AccountantPage() {
           </div>
           <h3 className="text-xl font-medium mb-1 tracking-tight">Liquidity</h3>
           <p className="text-slate-500 text-xs mb-4 font-light">Bank & Savings</p>
-          <div className="flex items-baseline gap-2 justify-end">
+          <div className="flex items-baseline gap-2 md:justify-end">
             <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full">+0.5%</span>
             <span className="text-3xl font-bold">£{totals.banks.toLocaleString()}</span>
           </div>
@@ -742,7 +742,7 @@ export default function AccountantPage() {
 
       {/* Bottom Left: Financial Years */}
       <section
-        className="absolute bottom-24 left-12 w-80 group cursor-pointer"
+        className="md:absolute md:bottom-24 md:left-12 w-full max-w-sm mx-auto md:w-80 group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
         onClick={() => setActiveTab("financial-years")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-500 group">
@@ -769,7 +769,7 @@ export default function AccountantPage() {
 
       {/* Bottom Right: Tax Returns */}
       <section
-        className="absolute bottom-24 right-12 w-80 text-right group cursor-pointer"
+        className="md:absolute md:bottom-24 md:right-12 w-full max-w-sm mx-auto md:w-80 md:text-right group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
         onClick={() => setActiveTab("tax-returns")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all duration-500 group">
@@ -783,7 +783,7 @@ export default function AccountantPage() {
           </div>
           <h3 className="text-xl font-medium mb-1 tracking-tight">Tax Returns</h3>
           <p className="text-slate-500 text-xs mb-4 font-light">Annual Assessments</p>
-          <div className="flex items-baseline gap-2 justify-end">
+          <div className="flex items-baseline gap-2 md:justify-end">
             <span className="text-3xl font-bold">{taxReturns.length}</span>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">Filed</span>
           </div>
@@ -850,8 +850,8 @@ export default function AccountantPage() {
 
       {/* Section Management Overlay */}
       {activeTab && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-[90] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className={`${activeTab === 'financial-years' ? 'max-w-7xl' : 'max-w-4xl'} w-full glass rounded-[40px] p-8 border border-white/10 shadow-2xl animate-in zoom-in duration-500 overflow-hidden flex flex-col max-h-[85vh]`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-[90] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+          <div className={`${activeTab === 'financial-years' ? 'max-w-7xl' : 'max-w-4xl'} w-full glass rounded-[32px] sm:rounded-[40px] p-4 sm:p-8 border border-white/10 shadow-2xl animate-in zoom-in duration-500 overflow-hidden flex flex-col max-h-[90vh]`}>
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-2xl ${activeTab === 'pensions' ? 'bg-purple-500/10 text-purple-400' :
@@ -877,14 +877,14 @@ export default function AccountantPage() {
               {activeTab === 'pensions' && (
                 <>
                   {/* Summary Card */}
-                  <div className="mb-6 p-5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-2xl border border-purple-500/30">
-                    <h3 className="text-lg font-bold text-purple-400 mb-3">Portfolio Summary</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                  <div className="mb-6 p-4 sm:p-5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 rounded-2xl border border-purple-500/30">
+                    <h3 className="text-lg font-bold text-purple-400 mb-3 text-center sm:text-left">Portfolio Summary</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-center sm:text-left">
                         <p className="text-[9px] text-purple-300 uppercase font-black tracking-wider mb-1">Total Portfolios</p>
                         <p className="text-2xl font-bold text-purple-400">{pensions.length}</p>
                       </div>
-                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                      <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 text-center sm:text-left">
                         <p className="text-[9px] text-purple-300 uppercase font-black tracking-wider mb-1">Total Value</p>
                         <p className="text-2xl font-bold text-purple-400">£{formatCurrency(totals.pensions)}</p>
                       </div>
@@ -894,8 +894,8 @@ export default function AccountantPage() {
                   {/* Pension List */}
                   <div className="grid gap-4">
                     {pensions.map(p => (
-                      <div key={p.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center group/item hover:border-purple-500/20 transition-all">
-                        <div className="flex-1">
+                      <div key={p.id} className="p-4 sm:p-5 glass rounded-2xl border border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group/item hover:border-purple-500/20 transition-all">
+                        <div className="flex-1 w-full">
                           {p.url ? (
                             <a
                               href={p.url}
@@ -904,17 +904,19 @@ export default function AccountantPage() {
                               className="font-bold flex items-center gap-2 text-white hover:text-purple-400 transition-colors"
                             >
                               {p.name}
-                              <ExternalLink size={14} className="opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                              <ExternalLink size={14} className="opacity-0 sm:group-hover/item:opacity-100 transition-opacity" />
                             </a>
                           ) : (
                             <h4 className="font-bold">{p.name}</h4>
                           )}
-                          <p className="text-xs text-slate-500">{p.notes || 'No description'}</p>
+                          <p className="text-xs text-slate-500 mt-1">{p.notes || 'No description'}</p>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-between w-full sm:w-auto gap-4 pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5 sm:border-none">
                           <span className="text-xl font-bold text-purple-400">£{formatCurrency(p.amount)}</span>
-                          <button onClick={() => startEditPension(p)} className="text-slate-600 hover:text-purple-400 transition-colors"><Edit2 size={18} /></button>
-                          <button onClick={() => deletePension(p.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                          <div className="flex gap-4">
+                            <button onClick={() => startEditPension(p)} className="text-slate-600 hover:text-purple-400 transition-colors"><Edit2 size={18} /></button>
+                            <button onClick={() => deletePension(p.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1014,14 +1016,14 @@ export default function AccountantPage() {
               {activeTab === 'banks' && (
                 <>
                   {/* Summary Card */}
-                  <div className="mb-6 p-5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-2xl border border-blue-500/30">
-                    <h3 className="text-lg font-bold text-blue-400 mb-3">Liquidity Summary</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                  <div className="mb-6 p-4 sm:p-5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-2xl border border-blue-500/30">
+                    <h3 className="text-lg font-bold text-blue-400 mb-3 text-center sm:text-left">Liquidity Summary</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-center sm:text-left">
                         <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1">Total Accounts</p>
                         <p className="text-2xl font-bold text-blue-400">{bankAccounts.length}</p>
                       </div>
-                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                      <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-center sm:text-left">
                         <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1">Total Balance</p>
                         <p className="text-2xl font-bold text-blue-400">£{formatCurrency(totals.banks)}</p>
                       </div>
@@ -1031,15 +1033,17 @@ export default function AccountantPage() {
                   {/* Bank Account List */}
                   <div className="grid gap-4">
                     {bankAccounts.map(b => (
-                      <div key={b.id} className="p-5 glass rounded-2xl border border-white/5 flex justify-between items-center">
-                        <div>
+                      <div key={b.id} className="p-4 sm:p-5 glass rounded-2xl border border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group/item hover:border-blue-500/20 transition-all">
+                        <div className="flex-1 w-full">
                           <h4 className="font-bold">{b.name}</h4>
-                          <p className="text-xs text-slate-500">{b.bank}{b.interest_rate ? ` • ${b.interest_rate}% APR` : ''}</p>
+                          <p className="text-xs text-slate-500 mt-1">{b.bank}{b.interest_rate ? ` • ${b.interest_rate}% APR` : ''}</p>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-between w-full sm:w-auto gap-4 pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5 sm:border-none">
                           <span className="text-xl font-bold text-blue-400">£{formatCurrency(b.amount)}</span>
-                          <button onClick={() => startEditBank(b)} className="text-slate-600 hover:text-blue-400 transition-colors"><Edit2 size={18} /></button>
-                          <button onClick={() => deleteBank(b.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                          <div className="flex gap-4">
+                            <button onClick={() => startEditBank(b)} className="text-slate-600 hover:text-blue-400 transition-colors"><Edit2 size={18} /></button>
+                            <button onClick={() => deleteBank(b.id)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1187,25 +1191,25 @@ export default function AccountantPage() {
                             </div>
 
                             {/* Year to Date Totals */}
-                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                               <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
                                 <p className="text-[9px] text-blue-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Taxable Pay</p>
-                                <p className="text-base font-bold text-blue-400 whitespace-nowrap">£{formatCurrency(fy.total_taxable_pay)}</p>
+                                <p className="text-base font-bold text-blue-400">£{formatCurrency(fy.total_taxable_pay)}</p>
                               </div>
 
                               <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
                                 <p className="text-[9px] text-green-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">Taxable NI Pay</p>
-                                <p className="text-base font-bold text-green-400 whitespace-nowrap">£{formatCurrency(fy.total_taxable_ni_pay)}</p>
+                                <p className="text-base font-bold text-green-400">£{formatCurrency(fy.total_taxable_ni_pay)}</p>
                               </div>
 
                               <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
                                 <p className="text-[9px] text-red-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">PAYE Tax</p>
-                                <p className="text-base font-bold text-red-400 whitespace-nowrap">£{formatCurrency(fy.total_paye_tax)}</p>
+                                <p className="text-base font-bold text-red-400">£{formatCurrency(fy.total_paye_tax)}</p>
                               </div>
 
                               <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/20">
                                 <p className="text-[9px] text-orange-300 uppercase font-black tracking-wider mb-1 whitespace-nowrap">NI Contributions</p>
-                                <p className="text-base font-bold text-orange-400 whitespace-nowrap">£{formatCurrency(fy.total_ni)}</p>
+                                <p className="text-base font-bold text-orange-400">£{formatCurrency(fy.total_ni)}</p>
                               </div>
                             </div>
                           </div>
@@ -1284,7 +1288,7 @@ export default function AccountantPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                           <div className="p-3 bg-red-500/10 rounded-xl border border-red-500/20">
                             <p className="text-[9px] text-red-300 uppercase font-black tracking-wider mb-1">Total Tax Charge</p>
                             <p className="text-base font-bold text-red-400">£{formatCurrency(tr.total_tax_charge)}</p>
@@ -1345,7 +1349,7 @@ export default function AccountantPage() {
                     </div>
                   ) : (
                     <form onSubmit={handleCreateTaxReturn} className="mt-6 pt-6 border-t border-white/5 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="text-xs text-slate-400 block mb-2">Financial Year *</label>
                           <input
@@ -1379,7 +1383,7 @@ export default function AccountantPage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                           <label className="text-xs text-slate-400 block mb-2">PAYE Tax</label>
                           <input
@@ -1489,7 +1493,7 @@ export default function AccountantPage() {
       )}
 
       {/* Status Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-6 text-[9px] font-black tracking-[0.4em] text-slate-500 uppercase">
+      <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-6 text-[9px] font-black tracking-[0.4em] text-slate-500 uppercase">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
           Core Engaged

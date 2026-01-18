@@ -11,7 +11,9 @@
       "Bash(sqlite3:*)",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(aws sts get-caller-identity:*)",
+      "Bash(docker manifest inspect:*)"
     ]
   }
 }

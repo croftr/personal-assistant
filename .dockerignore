@@ -1,0 +1,29 @@
+# Exclude from Docker image to keep it small
+node_modules
+.next
+.git
+.gitignore
+*.md
+README.md
+REFACTORING.md
+DATABASE.md
+
+# Exclude env files (will be set via Lambda environment variables)
+.env*
+!.env.example
+
+# Exclude development files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Exclude build artifacts that will be regenerated
+*.tsbuildinfo
+.DS_Store
+
+# Exclude claude temporary files
+tmpclaude-*
+
+# Note: We DO include /data directory because the SQLite database
+# needs to be baked into the image for read-only Lambda deployment
