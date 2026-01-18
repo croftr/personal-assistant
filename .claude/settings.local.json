@@ -10,7 +10,8 @@
       "Bash(findstr:*)",
       "Bash(sqlite3:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(wc:*)"
     ]
   }
 }

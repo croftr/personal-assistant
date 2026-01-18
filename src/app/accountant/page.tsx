@@ -1268,9 +1268,9 @@ export default function AccountantPage() {
                             <p className="text-xs text-slate-500 mt-1">Payment deadline: {new Date(tr.payment_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                           </div>
                           <div className="flex items-center gap-4">
-                            {tr.document_url && (
+                            {(tr as any).document_url && (
                               <a
-                                href={tr.document_url}
+                                href={(tr as any).document_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-2 bg-orange-500/10 rounded-lg text-orange-400 hover:bg-orange-500/20 transition-all flex items-center gap-2 text-xs font-bold"
