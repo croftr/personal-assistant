@@ -529,7 +529,7 @@ export default function AccountantPage() {
   };
 
   return (
-    <main className="min-h-screen gradient-bg text-white md:overflow-hidden overflow-y-auto overflow-x-hidden relative font-sans scroll-smooth">
+    <main className="min-h-screen gradient-bg text-white wide:overflow-hidden overflow-y-auto overflow-x-hidden relative font-sans scroll-smooth">
       <Toaster position="top-right" />
 
       {/* Background SVG for Data Flow */}
@@ -547,7 +547,7 @@ export default function AccountantPage() {
       </svg>
 
       {/* Title */}
-      <div className="md:absolute md:top-12 md:left-1/2 md:-translate-x-1/2 text-center z-20 relative pt-12 px-4 mb-12 md:mb-0">
+      <div className="wide:absolute wide:top-12 wide:left-1/2 wide:-translate-x-1/2 text-center z-20 relative pt-12 px-4 mb-12 wide:mb-0">
         <div className="flex flex-col items-center mb-2">
           <img src="/logo.svg" alt="Logo" className="w-16 h-16 mb-2 animate-float" />
           <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
@@ -654,12 +654,12 @@ export default function AccountantPage() {
       </div>
 
       {/* Central Engine Visual */}
-      <div className="md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 flex flex-col items-center justify-center w-full md:w-[500px] md:h-[500px] z-10 relative mb-48 md:mb-0 px-4">
-        <div className="absolute w-[300px] h-[300px] md:w-full md:h-full border border-blue-500/10 rounded-full animate-spin-slow"></div>
-        <div className="absolute w-[240px] h-[240px] md:w-[80%] md:h-[80%] border border-purple-500/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
-        <div className="absolute w-[180px] h-[180px] md:w-[60%] md:h-[60%] border border-indigo-500/10 rounded-full border-dashed animate-spin-slow"></div>
+      <div className="wide:absolute wide:top-1/2 wide:left-1/2 wide:-translate-x-1/2 wide:-translate-y-1/2 flex flex-col items-center justify-center w-full wide:w-[500px] wide:h-[500px] z-10 relative mb-48 wide:mb-0 px-4">
+        <div className="absolute w-[300px] h-[300px] wide:w-full wide:h-full border border-blue-500/10 rounded-full animate-spin-slow"></div>
+        <div className="absolute w-[240px] h-[240px] wide:w-[80%] wide:h-[80%] border border-purple-500/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
+        <div className="absolute w-[180px] h-[180px] wide:w-[60%] wide:h-[60%] border border-indigo-500/10 rounded-full border-dashed animate-spin-slow"></div>
 
-        <div className="relative group cursor-pointer scale-90 md:scale-100" onClick={generateSummary}>
+        <div className="relative group cursor-pointer scale-90 wide:scale-100" onClick={generateSummary}>
           <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-10 group-hover:opacity-30 transition-opacity"></div>
           <div className="w-56 h-56 rounded-full glass flex flex-col items-center justify-center border border-white/10 relative overflow-hidden backdrop-blur-3xl shadow-2xl">
             <div className="absolute inset-0 animate-pulse-ring rounded-full border border-blue-400/20"></div>
@@ -678,7 +678,7 @@ export default function AccountantPage() {
           </div>
         </div>
 
-        <div className="md:absolute md:-bottom-32 relative mt-12 md:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] md:w-auto">
+        <div className="wide:absolute wide:-bottom-32 relative mt-12 wide:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] wide:w-auto">
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[.4em] mb-1">Consolidated Net Worth</p>
           <h2 className="text-4xl font-light tracking-tight pb-1">£{totals.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</h2>
         </div>
@@ -688,7 +688,7 @@ export default function AccountantPage() {
 
       {/* Top Left: Pensions */}
       <section
-        className="md:absolute md:top-24 md:left-12 w-full max-w-sm mx-auto md:w-80 group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
+        className="wide:absolute wide:top-24 wide:left-12 w-full max-w-sm mx-auto wide:w-80 group cursor-pointer relative mb-6 wide:mb-0 px-4 wide:px-0"
         onClick={() => setActiveTab("pensions")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all duration-500 group">
@@ -715,7 +715,7 @@ export default function AccountantPage() {
 
       {/* Top Right: Bank Accounts */}
       <section
-        className="md:absolute md:top-24 md:right-12 w-full max-w-sm mx-auto md:w-80 md:text-right group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
+        className="wide:absolute wide:top-24 wide:right-12 w-full max-w-sm mx-auto wide:w-80 wide:text-right group cursor-pointer relative mb-6 wide:mb-0 px-4 wide:px-0"
         onClick={() => setActiveTab("banks")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all duration-500 group">
@@ -729,7 +729,7 @@ export default function AccountantPage() {
           </div>
           <h3 className="text-xl font-medium mb-1 tracking-tight">Liquidity</h3>
           <p className="text-slate-500 text-xs mb-4 font-light">Bank & Savings</p>
-          <div className="flex items-baseline gap-2 md:justify-end">
+          <div className="flex items-baseline gap-2 wide:justify-end">
             <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full">+0.5%</span>
             <span className="text-3xl font-bold">£{totals.banks.toLocaleString()}</span>
           </div>
@@ -742,7 +742,7 @@ export default function AccountantPage() {
 
       {/* Bottom Left: Financial Years */}
       <section
-        className="md:absolute md:bottom-24 md:left-12 w-full max-w-sm mx-auto md:w-80 group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
+        className="wide:absolute wide:bottom-24 wide:left-12 w-full max-w-sm mx-auto wide:w-80 group cursor-pointer relative mb-6 wide:mb-0 px-4 wide:px-0"
         onClick={() => setActiveTab("financial-years")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-500 group">
@@ -769,7 +769,7 @@ export default function AccountantPage() {
 
       {/* Bottom Right: Tax Returns */}
       <section
-        className="md:absolute md:bottom-24 md:right-12 w-full max-w-sm mx-auto md:w-80 md:text-right group cursor-pointer relative mb-6 md:mb-0 px-4 md:px-0"
+        className="wide:absolute wide:bottom-24 wide:right-12 w-full max-w-sm mx-auto wide:w-80 wide:text-right group cursor-pointer relative mb-6 wide:mb-0 px-4 wide:px-0"
         onClick={() => setActiveTab("tax-returns")}
       >
         <div className="glass p-6 rounded-3xl border border-white/5 hover:border-orange-500/50 hover:bg-orange-500/5 transition-all duration-500 group">
@@ -783,7 +783,7 @@ export default function AccountantPage() {
           </div>
           <h3 className="text-xl font-medium mb-1 tracking-tight">Tax Returns</h3>
           <p className="text-slate-500 text-xs mb-4 font-light">Annual Assessments</p>
-          <div className="flex items-baseline gap-2 md:justify-end">
+          <div className="flex items-baseline gap-2 wide:justify-end">
             <span className="text-3xl font-bold">{taxReturns.length}</span>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">Filed</span>
           </div>
@@ -1493,7 +1493,7 @@ export default function AccountantPage() {
       )}
 
       {/* Status Bar */}
-      <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-6 text-[9px] font-black tracking-[0.4em] text-slate-500 uppercase">
+      <div className="hidden wide:flex absolute bottom-6 left-1/2 -translate-x-1/2 items-center gap-6 text-[9px] font-black tracking-[0.4em] text-slate-500 uppercase">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
           Core Engaged
