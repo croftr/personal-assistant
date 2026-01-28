@@ -6,9 +6,6 @@ import {
   FileText,
   Landmark,
   Plus,
-  ChevronRight,
-  BrainCircuit,
-  TrendingUp,
   ShieldCheck,
   ArrowUpRight,
   Upload,
@@ -16,8 +13,12 @@ import {
   Trash2,
   Edit2,
   X,
-  Volume2,
-  ChevronDown
+  ChevronDown,
+  Send,
+  Bot,
+  Sparkles,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
 import toast, { Toaster } from "react-hot-toast";
@@ -36,15 +37,22 @@ export default function AccountantPage() {
     refreshTaxReturns
   } = useAccountantData();
 
-  const [summary, setSummary] = useState<{
-    score: number;
-    summary: string;
-    recommendations: string[];
-  } | null>(null);
-  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [messages, setMessages] = useState<{ role: "user" | "bot"; content: string }[]>([
+    { role: "bot", content: "I've analyzed your financial data. How can I help you today?" }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
   const [activeTab, setActiveTab] = useState<"pensions" | "banks" | "financial-years" | "tax-returns" | null>(null);
+
+  useEffect(() => {
+    const container = document.getElementById('chat-messages');
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages]);
   const [welcomeFetched, setWelcomeFetched] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPensionForm, setShowPensionForm] = useState(false);
   const [showBankForm, setShowBankForm] = useState(false);
@@ -67,23 +75,37 @@ export default function AccountantPage() {
     document_url: ''
   });
 
-  const generateSummary = async () => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isThinking) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+    setMessages(prev => [...prev, { role: "user", content: userMessage }]);
+    setIsThinking(true);
+
     try {
-      setAnalyzing(true);
-      const res = await fetch("/api/financial-summary", {
+      const res = await fetch("/api/financial-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pensions, financialYears, bankAccounts })
+        body: JSON.stringify({
+          messages: [...messages, { role: "user", content: userMessage }],
+          financialData: { pensions, bankAccounts, financialYears, taxReturns }
+        })
       });
+
       const data = await res.json();
       if (data.success) {
-        setSummary(data.result);
-        toast.success("Financial analysis complete");
+        setMessages(prev => [...prev, { role: "bot", content: data.text }]);
+        // Optional: speak the response if desired
+        // speak(data.text);
+      } else {
+        toast.error(data.error || "Failed to get response");
       }
     } catch (error) {
-      toast.error("Failed to analyze data");
+      toast.error("Failed to connect to AI");
     } finally {
-      setAnalyzing(false);
+      setIsThinking(false);
     }
   };
 
@@ -653,32 +675,91 @@ export default function AccountantPage() {
         )}
       </div>
 
-      {/* Central Engine Visual */}
-      <div className="wide:absolute wide:top-1/2 wide:left-1/2 wide:-translate-x-1/2 wide:-translate-y-1/2 flex flex-col items-center justify-center w-full wide:w-[500px] wide:h-[500px] z-10 relative mb-48 wide:mb-0 px-4">
-        <div className="absolute w-[300px] h-[300px] wide:w-full wide:h-full border border-blue-500/10 rounded-full animate-spin-slow"></div>
-        <div className="absolute w-[240px] h-[240px] wide:w-[80%] wide:h-[80%] border border-purple-500/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse' }}></div>
-        <div className="absolute w-[180px] h-[180px] wide:w-[60%] wide:h-[60%] border border-indigo-500/10 rounded-full border-dashed animate-spin-slow"></div>
+      {/* Central Engine visual and Chat Box */}
+      <div className="wide:absolute wide:top-1/2 wide:left-1/2 wide:-translate-x-1/2 wide:-translate-y-1/2 flex flex-col items-center justify-center w-full wide:w-[600px] z-10 relative mb-24 wide:mb-0 px-4">
+        {/* Decorative spinning rings - keeping them for aesthetic but non-clickable */}
+        <div className="absolute w-[400px] h-[400px] border border-blue-500/5 rounded-full animate-spin-slow pointer-events-none"></div>
+        <div className="absolute w-[340px] h-[340px] border border-purple-500/5 rounded-full animate-spin-slow pointer-events-none" style={{ animationDirection: 'reverse' }}></div>
 
-        <div className="relative group cursor-pointer scale-90 wide:scale-100" onClick={generateSummary}>
-          <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-10 group-hover:opacity-30 transition-opacity"></div>
-          <div className="w-56 h-56 rounded-full glass flex flex-col items-center justify-center border border-white/10 relative overflow-hidden backdrop-blur-3xl shadow-2xl">
-            <div className="absolute inset-0 animate-pulse-ring rounded-full border border-blue-400/20"></div>
-
-            {analyzing ? (
-              <BrainCircuit className="w-14 h-14 text-blue-400 animate-pulse" />
-            ) : summary ? (
-              <div className="text-center animate-in zoom-in duration-500">
-                <span className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-blue-400">{summary.score}</span>
-                <span className="text-[10px] block text-blue-300 font-bold tracking-widest mt-1">HEALTH INDEX</span>
+        {/* Chat Box Interface */}
+        <div className={`w-full transition-all duration-500 ease-in-out z-50 ${isChatExpanded
+            ? "fixed inset-0 m-0 rounded-none max-w-none h-full bg-slate-950/95 backdrop-blur-xl"
+            : "max-w-xl glass-heavy rounded-[32px] border border-white/10 shadow-2xl relative overflow-hidden flex flex-col h-[500px]"
+          } flex flex-col animate-in zoom-in duration-700`}>
+          {/* Chat Header */}
+          <div className={`p-4 border-b border-white/5 bg-white/5 flex items-center justify-between ${isChatExpanded ? "px-8 py-6" : ""}`}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <Bot size={18} className="text-blue-400" />
               </div>
-            ) : (
-              <BrainCircuit className="w-14 h-14 text-blue-400 group-hover:scale-110 transition-transform duration-500" />
-            )}
-            <p className="text-[9px] mt-4 font-bold tracking-[0.3em] text-blue-300/60 uppercase">Initiate Deep Scan</p>
+              <div>
+                <h2 className={`font-bold tracking-tight ${isChatExpanded ? "text-lg" : "text-sm"}`}>FINANCIAL ORACLE</h2>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Live Analysis Active</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <Sparkles size={16} className="text-purple-400 animate-pulse" />
+              <button
+                onClick={() => setIsChatExpanded(!isChatExpanded)}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
+                title={isChatExpanded ? "Exit Fullscreen" : "Enter Fullscreen"}
+              >
+                {isChatExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+              </button>
+            </div>
           </div>
+
+          {/* Chat Messages */}
+          <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar scroll-smooth ${isChatExpanded ? "px-12 py-8 space-y-6" : "space-y-4"}`} id="chat-messages">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                <div className={`${isChatExpanded ? 'max-w-[70%]' : 'max-w-[85%]'} p-4 rounded-2xl ${msg.role === 'user'
+                  ? 'bg-blue-600/20 border border-blue-500/30 text-blue-50 shadow-lg'
+                  : 'bg-white/5 border border-white/10 text-slate-200'
+                  }`}>
+                  <p className={`${isChatExpanded ? 'text-base' : 'text-sm'} leading-relaxed whitespace-pre-wrap`}>{msg.content}</p>
+                </div>
+              </div>
+            ))}
+            {isThinking && (
+              <div className="flex justify-start animate-pulse">
+                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce"></div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Chat Input */}
+          <form onSubmit={handleSendMessage} className={`p-4 bg-white/5 border-t border-white/5 ${isChatExpanded ? "px-12 py-8" : ""}`}>
+            <div className="relative max-w-4xl mx-auto">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask about your pensions, liquidity, or tax..."
+                className={`w-full bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-blue-500/50 transition-colors ${isChatExpanded ? "py-5 pl-6 pr-16 text-lg" : "py-3 pl-4 pr-12 text-sm"
+                  }`}
+                disabled={isThinking}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || isThinking}
+                className={`absolute top-1/2 -translate-y-1/2 rounded-xl bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-700 transition-all hover:scale-105 active:scale-95 ${isChatExpanded ? "right-4 p-3" : "right-2 p-2"
+                  }`}
+              >
+                <Send size={isChatExpanded ? 20 : 16} />
+              </button>
+            </div>
+          </form>
         </div>
 
-        <div className="wide:absolute wide:-bottom-32 relative mt-12 wide:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] wide:w-auto">
+        <div className="wide:absolute wide:-bottom-24 relative mt-8 wide:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] wide:w-auto">
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[.4em] mb-1">Consolidated Net Worth</p>
           <h2 className="text-4xl font-light tracking-tight pb-1">£{totals.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</h2>
         </div>
@@ -794,59 +875,7 @@ export default function AccountantPage() {
         </div>
       </section>
 
-      {/* Management Overlays & AI Summary Overlay (consolidated here for clarity) */}
-
-      {/* AI Summary Overlay */}
-      {summary && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl z-[100] flex items-center justify-center p-6 sm:p-12 animate-in fade-in duration-500">
-          <div className="max-w-3xl w-full glass rounded-[40px] p-8 sm:p-12 border border-blue-500/20 shadow-[0_0_100px_rgba(59,130,246,0.15)] animate-in zoom-in slide-in-from-bottom-10 duration-700 overflow-y-auto max-h-[90vh]">
-            <div className="flex justify-between items-start mb-12">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <BrainCircuit className="text-blue-400" size={32} />
-                  <h2 className="text-3xl font-bold tracking-tight">Neural Intelligence Report</h2>
-                </div>
-                <p className="text-slate-400 font-light">Deep analysis of connected financial nodes</p>
-              </div>
-              <button onClick={() => setSummary(null)} className="p-3 hover:bg-white/5 rounded-full text-slate-400 transition-colors">
-                <X size={28} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-              <div className="p-8 bg-blue-500/5 rounded-3xl border border-blue-500/10">
-                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.3em] block mb-4">Financial Health Factor</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-blue-400">{summary.score}</span>
-                  <span className="text-2xl text-slate-600 font-light">/ 10</span>
-                </div>
-              </div>
-              <div className="p-8 bg-purple-500/5 rounded-3xl border border-purple-500/10 flex flex-col justify-center">
-                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-[0.3em] block mb-3">Core Deduction</span>
-                <p className="text-lg leading-relaxed text-slate-200 font-light italic">"{summary.summary}"</p>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <h3 className="text-xs font-bold uppercase tracking-[0.4em] text-slate-500 flex items-center gap-4">
-                <div className="h-[1px] flex-1 bg-white/5"></div>
-                Strategic Protocols
-                <div className="h-[1px] flex-1 bg-white/5"></div>
-              </h3>
-              <div className="grid gap-4">
-                {summary.recommendations.map((rec, i) => (
-                  <div key={i} className="group p-6 bg-white/[0.02] hover:bg-white/[0.05] rounded-[24px] border border-white/5 transition-all duration-300">
-                    <div className="flex gap-4">
-                      <div className="mt-1 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] group-hover:scale-125 transition-transform" />
-                      <p className="text-slate-300 font-light leading-relaxed">{rec}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Management Overlays */}
 
       {/* Section Management Overlay */}
       {activeTab && (

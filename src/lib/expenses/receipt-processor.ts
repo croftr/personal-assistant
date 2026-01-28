@@ -27,7 +27,7 @@ export async function processReceipts(files: FileData[]): Promise<ProcessedExpen
       `;
 
             const response = await client.models.generateContent({
-                model: "gemini-2.0-flash-exp",
+                model: "gemini-2.0-flash",
                 contents: [
                     {
                         role: "user",
