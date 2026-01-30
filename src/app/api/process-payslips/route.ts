@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { convertUploadedFiles } from "@/lib/common/file-handler";
 import { processPayslips } from "@/lib/payslips/payslip-processor";
 import { upsertFinancialYearSummary, calculateFinancialYear } from "@/lib/payslips/financial-year-db-service";
+import { replacePayslip } from "@/lib/payslips/payslip-db-service";
 
 export async function POST(req: NextRequest) {
     try {
@@ -36,6 +37,22 @@ export async function POST(req: NextRequest) {
 
                     // Calculate financial year from pay date
                     const financialYear = calculateFinancialYear(result.payDate);
+
+                    // Store individual payslip in history
+                    replacePayslip(result.fileName, {
+                        file_name: result.fileName,
+                        pay_date: result.payDate,
+                        net_pay: result.netPay,
+                        gross_pay: result.grossPay,
+                        tax_paid: result.taxPaid,
+                        ni_paid: result.niPaid,
+                        pension_contribution: result.pensionContribution,
+                        other_deductions: result.otherDeductions,
+                        ytd_taxable_pay: result.yearToDate.totalTaxablePay,
+                        ytd_taxable_ni_pay: result.yearToDate.totalTaxableNIPay,
+                        ytd_paye_tax: result.yearToDate.totalPAYETax,
+                        ytd_ni: result.yearToDate.totalNI
+                    });
 
                     // Upsert financial year summary
                     const upsertResult = upsertFinancialYearSummary({

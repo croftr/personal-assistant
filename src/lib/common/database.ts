@@ -135,6 +135,10 @@ function initializeSchema(db: Database.Database) {
             ni_paid REAL,
             pension_contribution REAL,
             other_deductions REAL,
+            ytd_taxable_pay REAL,
+            ytd_taxable_ni_pay REAL,
+            ytd_paye_tax REAL,
+            ytd_ni REAL,
             notes TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -212,6 +216,22 @@ function initializeSchema(db: Database.Database) {
         }
     } catch (error) {
         console.log("tax_returns document_url column migration check:", error);
+    }
+
+    // Add YTD columns to existing payslips table if they don't exist
+    try {
+        const columns = db.prepare("PRAGMA table_info(payslips)").all() as any[];
+        const ytdColumns = ['ytd_taxable_pay', 'ytd_taxable_ni_pay', 'ytd_paye_tax', 'ytd_ni'];
+
+        for (const colName of ytdColumns) {
+            const hasColumn = columns.some(col => col.name === colName);
+            if (!hasColumn) {
+                db.exec(`ALTER TABLE payslips ADD COLUMN ${colName} REAL;`);
+                console.log(`Added ${colName} column to payslips table`);
+            }
+        }
+    } catch (error) {
+        console.log("payslips YTD columns migration check:", error);
     }
 
     // Create indexes for better query performance

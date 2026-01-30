@@ -109,6 +109,11 @@ export default function Home() {
 
     loadStatistics();
   }, []);
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   return (
     <main className="min-h-screen gradient-bg flex flex-col items-center justify-center p-8 text-white relative overflow-hidden">
       <div className="max-w-6xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700 z-10">
@@ -144,7 +149,7 @@ export default function Home() {
               <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
                 <div
                   className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${getFinancialYearProgress().progress}%` }}
+                  style={{ width: isMounted ? `${getFinancialYearProgress().progress}%` : '0%' }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                 </div>
@@ -177,7 +182,7 @@ export default function Home() {
                       ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
                       : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
                     }`}
-                  style={{ width: `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` }}
+                  style={{ width: isMounted ? `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` : '0%' }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                 </div>

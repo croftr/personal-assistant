@@ -18,10 +18,24 @@ import {
   Bot,
   Sparkles,
   Maximize2,
-  Minimize2
+  Minimize2,
+  History,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
 import toast, { Toaster } from "react-hot-toast";
+
+interface Payslip {
+  id: number;
+  file_name: string;
+  pay_date: string;
+  net_pay: number;
+  ytd_taxable_pay: number;
+  ytd_taxable_ni_pay: number;
+  ytd_paye_tax: number;
+  ytd_ni: number;
+}
 
 export default function AccountantPage() {
   const {
@@ -60,6 +74,9 @@ export default function AccountantPage() {
   const [editingPensionId, setEditingPensionId] = useState<number | null>(null);
   const [editingBankId, setEditingBankId] = useState<number | null>(null);
   const [editingTaxReturnId, setEditingTaxReturnId] = useState<number | null>(null);
+  const [expandedFYHistory, setExpandedFYHistory] = useState<Record<string, boolean>>({});
+  const [fyHistoryData, setFYHistoryData] = useState<Record<string, Payslip[]>>({});
+  const [loadingHistory, setLoadingHistory] = useState<Record<string, boolean>>({});
   const [pensionForm, setPensionForm] = useState({ name: '', amount: '', url: '', notes: '' });
   const [bankForm, setBankForm] = useState({ name: '', bank: '', amount: '', interest_rate: '', url: '', notes: '' });
   const [taxReturnForm, setTaxReturnForm] = useState({
@@ -74,6 +91,11 @@ export default function AccountantPage() {
     notes: '',
     document_url: ''
   });
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -106,6 +128,30 @@ export default function AccountantPage() {
       toast.error("Failed to connect to AI");
     } finally {
       setIsThinking(false);
+    }
+  };
+
+  const toggleFYHistory = async (financialYear: string) => {
+    if (expandedFYHistory[financialYear]) {
+      setExpandedFYHistory(prev => ({ ...prev, [financialYear]: false }));
+      return;
+    }
+
+    setExpandedFYHistory(prev => ({ ...prev, [financialYear]: true }));
+
+    if (!fyHistoryData[financialYear]) {
+      setLoadingHistory(prev => ({ ...prev, [financialYear]: true }));
+      try {
+        const res = await fetch(`/api/payslips?financialYear=${encodeURIComponent(financialYear)}`);
+        const data = await res.json();
+        if (data.success) {
+          setFYHistoryData(prev => ({ ...prev, [financialYear]: data.payslips }));
+        }
+      } catch (error) {
+        toast.error("Failed to load history");
+      } finally {
+        setLoadingHistory(prev => ({ ...prev, [financialYear]: false }));
+      }
     }
   };
 
@@ -546,12 +592,13 @@ export default function AccountantPage() {
 
 
   // Format currency with 2 decimal places
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatCurrency = (amount: number | null | undefined) => {
+    const value = amount ?? 0;
+    return value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
-    <main className="min-h-screen gradient-bg text-white wide:overflow-hidden overflow-y-auto overflow-x-hidden relative font-sans scroll-smooth">
+    <main className="min-h-screen gradient-bg text-white overflow-y-auto overflow-x-hidden relative font-sans scroll-smooth">
       <Toaster position="top-right" />
 
       {/* Background SVG for Data Flow */}
@@ -568,200 +615,204 @@ export default function AccountantPage() {
         <path d="M 100% 100% L 50% 50%" className="data-stream" stroke="url(#flow-grad)" strokeWidth="1" fill="none" />
       </svg>
 
-      {/* Title */}
-      <div className="wide:absolute wide:top-12 wide:left-1/2 wide:-translate-x-1/2 text-center z-20 relative pt-12 px-4 mb-12 wide:mb-0">
-        <div className="flex flex-col items-center mb-2">
-          <img src="/logo.svg" alt="Logo" className="w-16 h-16 mb-2 animate-float" />
-          <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
-            FINANCIAL ENGINE
-          </h1>
-        </div>
-        <p className="text-slate-400 mt-2 font-light tracking-widest uppercase text-[10px]">Autonomous Intelligence • Real-time Analysis</p>
+      {/* Central Content Column */}
+      <div className="wide:absolute wide:top-1/2 wide:left-1/2 wide:-translate-x-1/2 wide:-translate-y-1/2 flex flex-col items-center w-full wide:w-[800px] z-10 relative px-4 gap-8 wide:max-h-[90vh] wide:overflow-y-auto custom-scrollbar py-12 wide:py-0">
 
-        {welcomeMessage && (
-          <div className="mt-8 max-w-3xl mx-auto relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-            <div className="relative glass p-6 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-top-4 duration-1000">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-bold text-blue-100 tracking-widest uppercase">
-                  {welcomeMessage}
-                </p>
-              </div>
+        {/* Title Section */}
+        <div className="text-center z-20 w-full">
+          <div className="flex flex-col items-center mb-2">
+            <img src="/logo.svg" alt="Logo" className="w-16 h-16 mb-2 animate-float" />
+            <h1 className="text-5xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400">
+              FINANCIAL ENGINE
+            </h1>
+          </div>
+          <p className="text-slate-400 mt-2 font-light tracking-widest uppercase text-[10px]">Autonomous Intelligence • Real-time Analysis</p>
 
-              {/* Progress Bar */}
-              <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${getFinancialYearProgress().progress}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                <span>6 Apr {getCurrentFinancialYear().split('/')[0]}</span>
-                <span className="text-blue-400">{Math.round(getFinancialYearProgress().progress)}% Complete</span>
-                <span>5 Apr {parseInt(getCurrentFinancialYear().split('/')[0]) + 1}</span>
-              </div>
-
-              {/* Earnings Tracker */}
-              <div className="mt-6 pt-6 border-t border-white/5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
-                    Taxable Income Target
-                  </p>
-                  <p className={`text-xs font-bold tracking-wider ${getEarningsProgress().isOverTarget ? 'text-red-400' :
-                    getEarningsProgress().isNearTarget ? 'text-orange-400' :
-                      'text-green-400'
-                    }`}>
-                    £{getEarningsProgress().earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {welcomeMessage && (
+            <div className="mt-8 max-w-3xl mx-auto relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+              <div className="relative glass p-6 rounded-2xl border border-white/10 animate-in fade-in slide-in-from-top-4 duration-1000">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-bold text-blue-100 tracking-widest uppercase">
+                    {welcomeMessage}
                   </p>
                 </div>
 
-                {/* Earnings Progress Bar */}
-                <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
+                {/* Progress Bar */}
+                <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
                   <div
-                    className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${getEarningsProgress().isOverTarget
-                      ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
-                      : getEarningsProgress().isNearTarget
-                        ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
-                        : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
-                      }`}
-                    style={{ width: `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` }}
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: isMounted ? `${getFinancialYearProgress().progress}%` : '0%' }}
                   >
                     <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                   </div>
-
-                  {/* Target marker at 100% */}
-                  <div className="absolute inset-y-0 right-0 w-0.5 bg-white/30"></div>
                 </div>
 
                 <div className="flex justify-between items-center mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
-                  <span>£0</span>
-                  {getEarningsProgress().isOverTarget ? (
-                    <span className="text-red-400 animate-pulse">
-                      Over by £{getEarningsProgress().over.toLocaleString('en-GB')}
-                    </span>
-                  ) : getEarningsProgress().isNearTarget ? (
-                    <span className="text-orange-400">
-                      £{getEarningsProgress().remaining.toLocaleString('en-GB')} remaining
-                    </span>
-                  ) : (
-                    <span className="text-green-400">
-                      {Math.round(getEarningsProgress().progress)}% of target
-                    </span>
+                  <span>6 Apr {getCurrentFinancialYear().split('/')[0]}</span>
+                  <span className="text-blue-400">{Math.round(getFinancialYearProgress().progress)}% Complete</span>
+                  <span>5 Apr {parseInt(getCurrentFinancialYear().split('/')[0]) + 1}</span>
+                </div>
+
+                {/* Earnings Tracker */}
+                <div className="mt-6 pt-6 border-t border-white/5 text-left">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                      Taxable Income Target
+                    </p>
+                    <p className={`text-xs font-bold tracking-wider ${getEarningsProgress().isOverTarget ? 'text-red-400' :
+                      getEarningsProgress().isNearTarget ? 'text-orange-400' :
+                        'text-green-400'
+                      }`}>
+                      £{getEarningsProgress().earnings.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+
+                  {/* Earnings Progress Bar */}
+                  <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className={`absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out ${getEarningsProgress().isOverTarget
+                        ? 'bg-gradient-to-r from-red-500 via-orange-500 to-red-600'
+                        : getEarningsProgress().isNearTarget
+                          ? 'bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-600'
+                          : 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
+                        }`}
+                      style={{ width: isMounted ? `${getEarningsProgress().isOverTarget ? 100 : getEarningsProgress().progress}%` : '0%' }}
+                    >
+                      <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                    </div>
+
+                    {/* Target marker at 100% */}
+                    <div className="absolute inset-y-0 right-0 w-0.5 bg-white/30"></div>
+                  </div>
+
+                  <div className="flex justify-between items-center mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                    <span>£0</span>
+                    {getEarningsProgress().isOverTarget ? (
+                      <span className="text-red-400 animate-pulse">
+                        Over by £{getEarningsProgress().over.toLocaleString('en-GB')}
+                      </span>
+                    ) : getEarningsProgress().isNearTarget ? (
+                      <span className="text-orange-400">
+                        £{getEarningsProgress().remaining.toLocaleString('en-GB')} remaining
+                      </span>
+                    ) : (
+                      <span className="text-green-400">
+                        {Math.round(getEarningsProgress().progress)}% of target
+                      </span>
+                    )}
+                    <span>£100,000</span>
+                  </div>
+
+                  {getEarningsProgress().isOverTarget && (
+                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <p className="text-xs text-red-400 font-medium text-center">
+                        ⚠️ Higher Rate Tax Bracket Alert
+                      </p>
+                    </div>
                   )}
-                  <span>£100,000</span>
-                </div>
 
-                {getEarningsProgress().isOverTarget && (
-                  <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-xs text-red-400 font-medium text-center">
-                      ⚠️ Higher Rate Tax Bracket Alert
-                    </p>
-                  </div>
-                )}
-
-                {getEarningsProgress().isNearTarget && !getEarningsProgress().isOverTarget && (
-                  <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                    <p className="text-xs text-orange-400 font-medium text-center">
-                      ⚡ Approaching Target Threshold
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Central Engine visual and Chat Box */}
-      <div className="wide:absolute wide:top-1/2 wide:left-1/2 wide:-translate-x-1/2 wide:-translate-y-1/2 flex flex-col items-center justify-center w-full wide:w-[600px] z-10 relative mb-24 wide:mb-0 px-4">
-        {/* Decorative spinning rings - keeping them for aesthetic but non-clickable */}
-        <div className="absolute w-[400px] h-[400px] border border-blue-500/5 rounded-full animate-spin-slow pointer-events-none"></div>
-        <div className="absolute w-[340px] h-[340px] border border-purple-500/5 rounded-full animate-spin-slow pointer-events-none" style={{ animationDirection: 'reverse' }}></div>
-
-        {/* Chat Box Interface */}
-        <div className={`w-full transition-all duration-500 ease-in-out z-50 ${isChatExpanded
-            ? "fixed inset-0 m-0 rounded-none max-w-none h-full bg-slate-950/95 backdrop-blur-xl"
-            : "max-w-xl glass-heavy rounded-[32px] border border-white/10 shadow-2xl relative overflow-hidden flex flex-col h-[500px]"
-          } flex flex-col animate-in zoom-in duration-700`}>
-          {/* Chat Header */}
-          <div className={`p-4 border-b border-white/5 bg-white/5 flex items-center justify-between ${isChatExpanded ? "px-8 py-6" : ""}`}>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                <Bot size={18} className="text-blue-400" />
-              </div>
-              <div>
-                <h2 className={`font-bold tracking-tight ${isChatExpanded ? "text-lg" : "text-sm"}`}>FINANCIAL ORACLE</h2>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Live Analysis Active</span>
+                  {getEarningsProgress().isNearTarget && !getEarningsProgress().isOverTarget && (
+                    <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
+                      <p className="text-xs text-orange-400 font-medium text-center">
+                        ⚡ Approaching Target Threshold
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <Sparkles size={16} className="text-purple-400 animate-pulse" />
-              <button
-                onClick={() => setIsChatExpanded(!isChatExpanded)}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
-                title={isChatExpanded ? "Exit Fullscreen" : "Enter Fullscreen"}
-              >
-                {isChatExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Chat Messages */}
-          <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar scroll-smooth ${isChatExpanded ? "px-12 py-8 space-y-6" : "space-y-4"}`} id="chat-messages">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-                <div className={`${isChatExpanded ? 'max-w-[70%]' : 'max-w-[85%]'} p-4 rounded-2xl ${msg.role === 'user'
-                  ? 'bg-blue-600/20 border border-blue-500/30 text-blue-50 shadow-lg'
-                  : 'bg-white/5 border border-white/10 text-slate-200'
-                  }`}>
-                  <p className={`${isChatExpanded ? 'text-base' : 'text-sm'} leading-relaxed whitespace-pre-wrap`}>{msg.content}</p>
-                </div>
-              </div>
-            ))}
-            {isThinking && (
-              <div className="flex justify-start animate-pulse">
-                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce"></div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Chat Input */}
-          <form onSubmit={handleSendMessage} className={`p-4 bg-white/5 border-t border-white/5 ${isChatExpanded ? "px-12 py-8" : ""}`}>
-            <div className="relative max-w-4xl mx-auto">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask about your pensions, liquidity, or tax..."
-                className={`w-full bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-blue-500/50 transition-colors ${isChatExpanded ? "py-5 pl-6 pr-16 text-lg" : "py-3 pl-4 pr-12 text-sm"
-                  }`}
-                disabled={isThinking}
-              />
-              <button
-                type="submit"
-                disabled={!chatInput.trim() || isThinking}
-                className={`absolute top-1/2 -translate-y-1/2 rounded-xl bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-700 transition-all hover:scale-105 active:scale-95 ${isChatExpanded ? "right-4 p-3" : "right-2 p-2"
-                  }`}
-              >
-                <Send size={isChatExpanded ? 20 : 16} />
-              </button>
-            </div>
-          </form>
+          )}
         </div>
 
-        <div className="wide:absolute wide:-bottom-24 relative mt-8 wide:mt-0 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px] wide:w-auto">
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[.4em] mb-1">Consolidated Net Worth</p>
-          <h2 className="text-4xl font-light tracking-tight pb-1">£{totals.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</h2>
+        {/* Engine and Chat Interface */}
+        <div className="relative w-full flex flex-col items-center justify-center">
+          {/* Decorative spinning rings */}
+          <div className="absolute w-[400px] h-[400px] border border-blue-500/5 rounded-full animate-spin-slow pointer-events-none"></div>
+          <div className="absolute w-[340px] h-[340px] border border-purple-500/5 rounded-full animate-spin-slow pointer-events-none" style={{ animationDirection: 'reverse' }}></div>
+
+          {/* Chat Box Interface */}
+          <div className={`w-full transition-all duration-500 ease-in-out z-50 ${isChatExpanded
+            ? "fixed inset-0 m-0 rounded-none max-w-none h-full bg-slate-950/95 backdrop-blur-xl"
+            : "max-w-xl glass-heavy rounded-[32px] border border-white/10 shadow-2xl relative overflow-hidden flex flex-col h-[500px]"
+            } flex flex-col animate-in zoom-in duration-700`}>
+            {/* Chat Header */}
+            <div className={`p-4 border-b border-white/5 bg-white/5 flex items-center justify-between ${isChatExpanded ? "px-8 py-6" : ""}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <Bot size={18} className="text-blue-400" />
+                </div>
+                <div>
+                  <h2 className={`font-bold tracking-tight ${isChatExpanded ? "text-lg" : "text-sm"}`}>FINANCIAL ORACLE</h2>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Live Analysis Active</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <Sparkles size={16} className="text-purple-400 animate-pulse" />
+                <button
+                  onClick={() => setIsChatExpanded(!isChatExpanded)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
+                  title={isChatExpanded ? "Exit Fullscreen" : "Enter Fullscreen"}
+                >
+                  {isChatExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Chat Messages */}
+            <div className={`flex-1 overflow-y-auto p-4 custom-scrollbar scroll-smooth ${isChatExpanded ? "px-12 py-8 space-y-6" : "space-y-4"}`} id="chat-messages">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                  <div className={`${isChatExpanded ? 'max-w-[70%]' : 'max-w-[85%]'} p-4 rounded-2xl ${msg.role === 'user'
+                    ? 'bg-blue-600/20 border border-blue-500/30 text-blue-50 shadow-lg'
+                    : 'bg-white/5 border border-white/10 text-slate-200'
+                    }`}>
+                    <p className={`${isChatExpanded ? 'text-base' : 'text-sm'} leading-relaxed whitespace-pre-wrap`}>{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {isThinking && (
+                <div className="flex justify-start animate-pulse">
+                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.3s]"></div>
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce"></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <form onSubmit={handleSendMessage} className={`p-4 bg-white/5 border-t border-white/5 ${isChatExpanded ? "px-12 py-8" : ""}`}>
+              <div className="relative max-w-4xl mx-auto">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask about your pensions, liquidity, or tax..."
+                  className={`w-full bg-white/5 border border-white/10 rounded-2xl focus:outline-none focus:border-blue-500/50 transition-colors ${isChatExpanded ? "py-5 pl-6 pr-16 text-lg" : "py-3 pl-4 pr-12 text-sm"
+                    }`}
+                  disabled={isThinking}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim() || isThinking}
+                  className={`absolute top-1/2 -translate-y-1/2 rounded-xl bg-blue-500 text-white disabled:opacity-50 disabled:bg-slate-700 transition-all hover:scale-105 active:scale-95 ${isChatExpanded ? "right-4 p-3" : "right-2 p-2"
+                    }`}
+                >
+                  <Send size={isChatExpanded ? 20 : 16} />
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="mt-8 text-center bg-white/5 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/5 w-full max-w-[280px]">
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[.4em] mb-1">Consolidated Net Worth</p>
+            <h2 className="text-4xl font-light tracking-tight pb-1">£{totals.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</h2>
+          </div>
         </div>
       </div>
 
@@ -1241,6 +1292,100 @@ export default function AccountantPage() {
                                 <p className="text-base font-bold text-orange-400">£{formatCurrency(fy.total_ni)}</p>
                               </div>
                             </div>
+
+                            {/* History Toggle */}
+                            <div className="mt-4 flex justify-end">
+                              <button
+                                onClick={() => toggleFYHistory(fy.financial_year)}
+                                className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-slate-500 hover:text-green-400 transition-colors"
+                              >
+                                {expandedFYHistory[fy.financial_year] ? (
+                                  <>Hide History <X size={14} /></>
+                                ) : (
+                                  <>View History <History size={14} /></>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* History Table */}
+                            {expandedFYHistory[fy.financial_year] && (
+                              <div className="mt-6 pt-6 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
+                                {loadingHistory[fy.financial_year] ? (
+                                  <div className="flex justify-center py-8">
+                                    <div className="w-6 h-6 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin"></div>
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                      <thead>
+                                        <tr className="text-slate-500 uppercase tracking-widest font-black border-b border-white/5">
+                                          <th className="pb-3 pr-4">Date</th>
+                                          <th className="pb-3 px-4">Taxable Pay</th>
+                                          <th className="pb-3 px-4">NI Pay</th>
+                                          <th className="pb-3 px-4">PAYE Tax</th>
+                                          <th className="pb-3 px-4">NI Contrib</th>
+                                          <th className="pb-3 pl-4">Added</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-white/5">
+                                        {(fyHistoryData[fy.financial_year] || []).map((payslip, idx, all) => {
+                                          const prev = all[idx + 1]; // Older payslip
+                                          const delta = prev ? {
+                                            pay: (payslip.ytd_taxable_pay ?? 0) - (prev.ytd_taxable_pay ?? 0),
+                                            ni_pay: (payslip.ytd_taxable_ni_pay ?? 0) - (prev.ytd_taxable_ni_pay ?? 0),
+                                            tax: (payslip.ytd_paye_tax ?? 0) - (prev.ytd_paye_tax ?? 0),
+                                            ni: (payslip.ytd_ni ?? 0) - (prev.ytd_ni ?? 0)
+                                          } : {
+                                            pay: payslip.ytd_taxable_pay ?? 0,
+                                            ni_pay: payslip.ytd_taxable_ni_pay ?? 0,
+                                            tax: payslip.ytd_paye_tax ?? 0,
+                                            ni: payslip.ytd_ni ?? 0
+                                          };
+
+                                          return (
+                                            <tr key={payslip.id} className="group hover:bg-white/5 transition-colors">
+                                              <td className="py-3 pr-4 font-medium text-slate-300">
+                                                {new Date(payslip.pay_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                              </td>
+                                              <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                  <span>£{formatCurrency(payslip.ytd_taxable_pay)}</span>
+                                                  <span className="text-[9px] text-green-400 font-bold">+{formatCurrency(delta.pay)}</span>
+                                                </div>
+                                              </td>
+                                              <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                  <span>£{formatCurrency(payslip.ytd_taxable_ni_pay)}</span>
+                                                  <span className="text-[9px] text-green-400 font-bold">+{formatCurrency(delta.ni_pay)}</span>
+                                                </div>
+                                              </td>
+                                              <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                  <span>£{formatCurrency(payslip.ytd_paye_tax)}</span>
+                                                  <span className="text-[9px] text-red-400 font-bold">+{formatCurrency(delta.tax)}</span>
+                                                </div>
+                                              </td>
+                                              <td className="py-3 px-4">
+                                                <div className="flex flex-col">
+                                                  <span>£{formatCurrency(payslip.ytd_ni)}</span>
+                                                  <span className="text-[9px] text-orange-400 font-bold">+{formatCurrency(delta.ni)}</span>
+                                                </div>
+                                              </td>
+                                              <td className="py-3 pl-4">
+                                                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-lg">
+                                                  <TrendingUp size={10} className="text-green-400" />
+                                                  £{formatCurrency(delta.pay)}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
