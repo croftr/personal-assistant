@@ -21,7 +21,8 @@ import {
   Minimize2,
   History,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Copy
 } from "lucide-react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
 import toast, { Toaster } from "react-hot-toast";
@@ -128,6 +129,92 @@ export default function AccountantPage() {
       toast.error("Failed to connect to AI");
     } finally {
       setIsThinking(false);
+    }
+  };
+
+  const exportDataToClipboard = async () => {
+    const formatCurrency = (amount: number) => `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
+
+    let output = `FINANCIAL DATA EXPORT\n`;
+    output += `Generated: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-GB')}\n`;
+    output += `${'='.repeat(60)}\n\n`;
+
+    // Pensions
+    output += `PENSION PORTFOLIOS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (pensions.length > 0) {
+      pensions.forEach(p => {
+        output += `• ${p.name}: ${formatCurrency(p.amount)}\n`;
+        if (p.notes) output += `  Notes: ${p.notes}\n`;
+      });
+      output += `\nTotal Pensions: ${formatCurrency(totals.pensions)}\n`;
+    } else {
+      output += `No pension records.\n`;
+    }
+    output += `\n`;
+
+    // Bank Accounts
+    output += `BANK ACCOUNTS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (bankAccounts.length > 0) {
+      bankAccounts.forEach(b => {
+        output += `• ${b.name} (${b.bank}): ${formatCurrency(b.amount)}`;
+        if (b.interest_rate) output += ` @ ${b.interest_rate}%`;
+        output += `\n`;
+        if (b.notes) output += `  Notes: ${b.notes}\n`;
+      });
+      output += `\nTotal Bank Accounts: ${formatCurrency(totals.banks)}\n`;
+    } else {
+      output += `No bank account records.\n`;
+    }
+    output += `\n`;
+
+    // Financial Years
+    output += `FINANCIAL YEARS (INCOME)\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (financialYears.length > 0) {
+      financialYears.forEach(fy => {
+        output += `• ${fy.financial_year}:\n`;
+        output += `  Taxable Pay: ${formatCurrency(fy.total_taxable_pay)}\n`;
+        output += `  PAYE Tax: ${formatCurrency(fy.total_paye_tax)}\n`;
+        output += `  NI: ${formatCurrency(fy.total_ni)}\n`;
+      });
+    } else {
+      output += `No financial year records.\n`;
+    }
+    output += `\n`;
+
+    // Tax Returns
+    output += `TAX RETURNS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (taxReturns.length > 0) {
+      taxReturns.forEach(tr => {
+        output += `• ${tr.financial_year}:\n`;
+        output += `  Total Tax Charge: ${formatCurrency(tr.total_tax_charge)}\n`;
+        if (tr.paye_tax) output += `  PAYE Tax: ${formatCurrency(tr.paye_tax)}\n`;
+        if (tr.savings_tax) output += `  Savings Tax: ${formatCurrency(tr.savings_tax)}\n`;
+        if (tr.child_benefit_payback) output += `  Child Benefit Payback: ${formatCurrency(tr.child_benefit_payback)}\n`;
+        if (tr.payment_deadline) output += `  Payment Deadline: ${tr.payment_deadline}\n`;
+        if (tr.notes) output += `  Notes: ${tr.notes}\n`;
+      });
+    } else {
+      output += `No tax return records.\n`;
+    }
+    output += `\n`;
+
+    // Summary
+    output += `${'='.repeat(60)}\n`;
+    output += `SUMMARY\n`;
+    output += `${'-'.repeat(40)}\n`;
+    output += `Total Pensions:      ${formatCurrency(totals.pensions)}\n`;
+    output += `Total Bank Accounts: ${formatCurrency(totals.banks)}\n`;
+    output += `Consolidated Net Worth: ${formatCurrency(totals.grandTotal)}\n`;
+
+    try {
+      await navigator.clipboard.writeText(output);
+      toast.success("Financial data copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -752,6 +839,13 @@ export default function AccountantPage() {
               </div>
               <div className="flex items-center gap-4">
                 <Sparkles size={16} className="text-purple-400 animate-pulse" />
+                <button
+                  onClick={exportDataToClipboard}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
+                  title="Export data for other LLMs"
+                >
+                  <Copy size={20} />
+                </button>
                 <button
                   onClick={() => setIsChatExpanded(!isChatExpanded)}
                   className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"

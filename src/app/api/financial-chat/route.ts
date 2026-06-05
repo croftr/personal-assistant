@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
         const lastMessage = messages[messages.length - 1].content;
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: "gemini-3.5-flash",
             contents: [
                 ...history,
                 { role: "user", parts: [{ text: lastMessage }] }

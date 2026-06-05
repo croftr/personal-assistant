@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useAccountantData } from "@/hooks/use-accountant-data";
-import { Receipt, Calculator, TrendingUp } from "lucide-react";
+import { Receipt, Calculator, TrendingUp, Copy } from "lucide-react";
 import { AssistantCard } from "@/components/common/AssistantCard";
 import { ExpenseStatistics } from "@/components/expenses/ExpenseStatistics";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function Home() {
-  const { financialYears } = useAccountantData();
+  const { financialYears, pensions, bankAccounts, taxReturns, totals } = useAccountantData();
 
   const [statistics, setStatistics] = useState<{
     total_reports: number;
@@ -91,6 +92,95 @@ export default function Home() {
     };
   };
 
+  const exportDataToClipboard = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const formatCurrency = (amount: number) => `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
+
+    let output = `FINANCIAL DATA EXPORT\n`;
+    output += `Generated: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-GB')}\n`;
+    output += `${'='.repeat(60)}\n\n`;
+
+    // Pensions
+    output += `PENSION PORTFOLIOS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (pensions.length > 0) {
+      pensions.forEach(p => {
+        output += `• ${p.name}: ${formatCurrency(p.amount)}\n`;
+        if (p.notes) output += `  Notes: ${p.notes}\n`;
+      });
+      output += `\nTotal Pensions: ${formatCurrency(totals.pensions)}\n`;
+    } else {
+      output += `No pension records.\n`;
+    }
+    output += `\n`;
+
+    // Bank Accounts
+    output += `BANK ACCOUNTS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (bankAccounts.length > 0) {
+      bankAccounts.forEach(b => {
+        output += `• ${b.name} (${b.bank}): ${formatCurrency(b.amount)}`;
+        if (b.interest_rate) output += ` @ ${b.interest_rate}%`;
+        output += `\n`;
+        if (b.notes) output += `  Notes: ${b.notes}\n`;
+      });
+      output += `\nTotal Bank Accounts: ${formatCurrency(totals.banks)}\n`;
+    } else {
+      output += `No bank account records.\n`;
+    }
+    output += `\n`;
+
+    // Financial Years
+    output += `FINANCIAL YEARS (INCOME)\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (financialYears.length > 0) {
+      financialYears.forEach(fy => {
+        output += `• ${fy.financial_year}:\n`;
+        output += `  Taxable Pay: ${formatCurrency(fy.total_taxable_pay)}\n`;
+        output += `  PAYE Tax: ${formatCurrency(fy.total_paye_tax)}\n`;
+        output += `  NI: ${formatCurrency(fy.total_ni)}\n`;
+      });
+    } else {
+      output += `No financial year records.\n`;
+    }
+    output += `\n`;
+
+    // Tax Returns
+    output += `TAX RETURNS\n`;
+    output += `${'-'.repeat(40)}\n`;
+    if (taxReturns.length > 0) {
+      taxReturns.forEach(tr => {
+        output += `• ${tr.financial_year}:\n`;
+        output += `  Total Tax Charge: ${formatCurrency(tr.total_tax_charge)}\n`;
+        if (tr.paye_tax) output += `  PAYE Tax: ${formatCurrency(tr.paye_tax)}\n`;
+        if (tr.savings_tax) output += `  Savings Tax: ${formatCurrency(tr.savings_tax)}\n`;
+        if (tr.child_benefit_payback) output += `  Child Benefit Payback: ${formatCurrency(tr.child_benefit_payback)}\n`;
+        if (tr.payment_deadline) output += `  Payment Deadline: ${tr.payment_deadline}\n`;
+        if (tr.notes) output += `  Notes: ${tr.notes}\n`;
+      });
+    } else {
+      output += `No tax return records.\n`;
+    }
+    output += `\n`;
+
+    // Summary
+    output += `${'='.repeat(60)}\n`;
+    output += `SUMMARY\n`;
+    output += `${'-'.repeat(40)}\n`;
+    output += `Total Pensions:      ${formatCurrency(totals.pensions)}\n`;
+    output += `Total Bank Accounts: ${formatCurrency(totals.banks)}\n`;
+    output += `Consolidated Net Worth: ${formatCurrency(totals.grandTotal)}\n`;
+
+    try {
+      await navigator.clipboard.writeText(output);
+      toast.success("Financial data copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy to clipboard");
+    }
+  };
+
   useEffect(() => {
     const loadStatistics = async () => {
       setLoadingStats(true);
@@ -116,6 +206,7 @@ export default function Home() {
   }, []);
   return (
     <main className="min-h-screen gradient-bg flex flex-col items-center justify-center p-8 text-white relative overflow-hidden">
+      <Toaster position="top-center" />
       <div className="max-w-6xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700 z-10">
 
         {/* Header */}
@@ -238,6 +329,15 @@ export default function Home() {
             href="/accountant"
             iconColor="text-purple-400"
             iconBgColor="bg-purple-600/20"
+            actionButton={
+              <button
+                onClick={exportDataToClipboard}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 hover:border-purple-500/50 transition-all text-purple-400 hover:text-purple-300"
+                title="Export data for other LLMs"
+              >
+                <Copy size={18} />
+              </button>
+            }
           />
 
 
